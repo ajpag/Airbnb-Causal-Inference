@@ -15,3 +15,6 @@ Source: https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/
 ```tidyverse```
 
 ```here```
+
+**Data dictionary**
+https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/data
