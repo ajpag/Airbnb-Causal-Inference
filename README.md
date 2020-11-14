@@ -9,7 +9,7 @@ Source: https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/
 
 ```/data```: formatted data for analysis
 
-```/raw```: raw data. Excludes ```sessions.csv``` due to GitHub file size limits on this plan.
+```/raw```: raw data. Excludes *sessions.csv* due to GitHub file size limits on this plan.
 
 ```/scripts```: data cleaning script
 
