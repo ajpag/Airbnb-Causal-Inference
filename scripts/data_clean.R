@@ -9,21 +9,16 @@ library(dplyr)
 library(here)
 library(readr)
 
-################## Set relative directory ##################
-# creates an empty file, .here and uses this location as the root directory
-# only needs to be done once
-#set_here()
-
 ################## Load data ##################
 # Source: https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/
   
 # load airbnb booking dataset
 print("Loading data..")
-path_raw <- "raw/"
+path_raw <- "raw"
 # bookings file
 file_book <- "train_users_2.csv"
 # bookings dataset
-book_raw <- read_csv(paste0(path_raw, file_book))
+book_raw <- read_csv(here(path_raw, file_book))
 # number of rows and columns
 records_raw <- nrow(book_raw)
 fields_raw <- ncol(book_raw)
@@ -61,11 +56,11 @@ book$date_first_active <- as.Date(substr(book$timestamp_first_active, 1, 8), "%Y
 book$days_diff <- as.numeric(book$date_account_created - book$date_first_active, units = "days")
 
 ################## Write to csv ##################
-print("Write formatted file to csv.")
+print("Writing formatted file to csv..")
 # write to csv
 file_out <- "bookings.csv"
-path_out <- "data/"
-write_csv(book, path = paste0(path_out, file_out))
+path_out <- "data"
+write_csv(book, here(path_out, file_out))
 paste0("Data cleaning complete! Data is stored in: ", path_out)
 
 records <- nrow(book)
