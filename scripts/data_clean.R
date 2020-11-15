@@ -25,12 +25,19 @@ fields_raw <- ncol(book_raw)
 
 ################## Filter data ##################
 print("Cleaning data...")
-print("Remove unknown gender values..")
+print("Filtering Data..")
 # remove unknown gender
 # include only users ages 18 - 80
 print("Filter to ages 18 - 80...")
 book <- book_raw %>% filter(between(age, 18, 80) 
                             & gender != "-unknown-")
+                          
+################## Group browser types ##################                        
+# Keep Top 5 browser types and group remainder into "Other"
+top_browsers <- c("Chrome", "IE", "Firefox", "Safari", "Mobile Safari")
+book$browser_group <- if_else(!book$first_browser %in% top_browsers, 
+                              "Other",
+                              book$first_browser)
 
 ################## Binarize variables ##################
 # direct vs. marketing ads

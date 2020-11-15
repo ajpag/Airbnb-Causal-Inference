@@ -1,0 +1,65 @@
+---
+title: "Airbnb: Causal Inference"
+subtitle: "Inferring Causal Effects of Marketing Ads on User Bookings"
+author: "Andrew Pagtakhan"
+date: "12/4/2020"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+    number_section: true
+---
+
+R version 3.6.0 (2019-04-26)
+Platform: x86_64-w64-mingw32
+
+
+```{r setup, message=FALSE}
+if(!requireNamespace("arm"))
+  install.packages("arm")
+if(!requireNamespace("here"))
+  install.packages("here")
+if(!requireNamespace("tidyverse"))
+  install.packages("tidyverse")
+if(!requireNamespace("BART"))
+  install.packages("BART")
+
+library(arm)
+library(here)
+library(tidyverse)
+library(BART) # Bayesian Additive Regression Trees
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load Data
+
+```{r, message = FALSE}
+# load bookings data
+book <- read_csv(here("data", "bookings.csv"))
+```
+
+# Exploratory Data Analysis:
+
+## User demographics
+See https://public.tableau.com/profile/andrew.pagtakhan#!/vizhome/NYU_Causal_Airbnb/destination for 
+
+## Overlap
+
+## Balance
+
+
+# Modeling
+
+## Run preliminary model
+
+```{r}
+# see preliminary effects using logistic model
+summary(lr <- glm(is_booked ~ age + gender + is_mkt + first_device_type, 
+                  data = book, 
+                  family = binomial(link = "logit")))
+
+# get probabilities of booking
+book$is_booked_p <- predict(lr, type = "response")
+tapply(book$is_booked_p, book$is_booked, mean)
+```
+
