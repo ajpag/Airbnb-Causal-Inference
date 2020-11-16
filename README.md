@@ -40,7 +40,7 @@ Derived columns:
 
 Outcome: ```is_booked```
 
-Treatment:```is_mkt```
+Treatment: ```treat```
 
 Covariates: ```age```, ```gender```, ```is_eng```, ```is_mobile```, ```browser_type```, ```days_diff```(too imbalanced to be include?)
 
