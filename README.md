@@ -1,7 +1,7 @@
 # **Airbnb-Causal-Inference**
 *Diana Liang, Andrew Pagtakhan*
 
-Airbnb Causal Analysis to measure the impact of direct vs. indirct marketing ad exposure on user bookings
+Airbnb Causal Analysis to measure the impact of direct vs. indirect marketing ad exposure on user bookings
 
 Source: https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/
 
