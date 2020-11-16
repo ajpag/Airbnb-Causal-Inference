@@ -79,21 +79,37 @@ tapply(book$ps_lr, book$is_booked, mean)
 ```{r}
 # convert variables for BART model
 book$gender <- as.factor(book$gender)
-book$first_device_type <- as.factor(book$gender)
+book$first_device_type <- as.factor(book$first_device_type)
 book$browser_group <- as.factor(book$browser_group)
-book$is_direct <- as.factor(book$is_direct)
 ```
 
 ```{r, cache = TRUE}
 # try BART on sample data first
 # consider running analysis on sample of data only due to computational limits
 book_sample <- sample_n(book, size = 100, replace = FALSE)
-gbart(x.train = as.data.frame(book_sample %>% 
+bart <- gbart(x.train = as.data.frame(book_sample %>% 
                                 select(age, gender, first_device_type, 
-                                       browser_group, is_direct)), 
-      y.train = book_sample$is_direct,
-      type = "lbart")
+                                       browser_group, is_direct)),  
+              y.train = book_sample$is_booked,
+              type = "lbart",
+              seed = 14,
+              mc.cores = 2)
+# add prop scores to df
+book_sample$ps_bart <- bart$prob.train.mean
 ```
+
+```{r}
+# define color palette for graphs
+col.pal <- c("#999999", "#E69F00", "#56B4E9", "#777777")
+
+# plot propensity scores
+book_sample %>% 
+  ggplot(aes(x = ps_bart, fill = as.factor(is_booked))) +
+  geom_histogram(alpha = 0.5) + 
+  labs(title = "Propensity Score Distribution: BART") + 
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = col.pal)
+``` 
 
 
 ```{r, include=FALSE, eval=FALSE}
