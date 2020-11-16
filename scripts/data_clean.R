@@ -40,9 +40,10 @@ book$browser_group <- if_else(!book$first_browser %in% top_browsers,
                               book$first_browser)
 
 ################## Binarize variables ##################
-# direct vs. marketing ads
 print("Binarize variables..")
-book$is_mkt <- if_else(book$affiliate_channel == "direct", 0, 1)
+# direct vs. non-direct ads
+# direct = 1, all other = 0
+book$treat <- if_else(book$affiliate_channel == "direct", 1, 0)
 
 # group book vs. non-booked
 book$is_booked <- if_else(book$country_destination == "NDF", 0, 1) 
@@ -52,7 +53,6 @@ book$is_booked <- if_else(book$country_destination == "NDF", 0, 1)
 book$is_eng <- if_else(book$language == "en", 1, 0)
 # binarize signup app (mobile vs. desktop)
 book$is_mobile <- if_else(book$signup_app %in% c("Android", "iOS"), 1, 0)
-
 
 ################## Clean timestamp column ##################
 print("Clean timestamp columns..")
