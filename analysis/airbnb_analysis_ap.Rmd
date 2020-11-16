@@ -13,8 +13,8 @@ output:
 R version 3.6.0 (2019-04-26)
 Platform: x86_64-w64-mingw32
 
-
-```{r setup, message=FALSE}
+```{r setup, include=FALSE}
+# installs packages if needed
 if(!requireNamespace("arm"))
   install.packages("arm")
 if(!requireNamespace("here"))
@@ -24,12 +24,20 @@ if(!requireNamespace("tidyverse"))
 if(!requireNamespace("BART"))
   install.packages("BART")
 
+# increase memory limit for matching function
+#memory.limit(size = 4095)
+```
+
+```{r}
 library(arm)
+library(BART) # Bayesian Additive Regression Trees
 library(here)
 library(tidyverse)
-library(BART) # Bayesian Additive Regression Trees
 knitr::opts_chunk$set(echo = TRUE)
+
+# set.seed(14)
 ```
+
 
 # Load Data
 
@@ -38,28 +46,94 @@ knitr::opts_chunk$set(echo = TRUE)
 book <- read_csv(here("data", "bookings.csv"))
 ```
 
-# Exploratory Data Analysis:
+# Exploratory Data Analysis
 
-## User demographics
-See https://public.tableau.com/profile/andrew.pagtakhan#!/vizhome/NYU_Causal_Airbnb/destination for 
+## User demographics and overlap
+See Tableau dashboard link below:
 
-## Overlap
+**https://public.tableau.com/profile/andrew.pagtakhan#!/vizhome/NYU_Causal_Airbnb/destination**
 
 ## Balance
 
 
 # Modeling
 
-## Run preliminary model
+## Propensity Scores
+
+### Logistic Regression
 
 ```{r}
 # see preliminary effects using logistic model
-summary(lr <- glm(is_booked ~ age + gender + is_mkt + first_device_type, 
+summary(lr <- glm(is_booked ~ age + gender + is_direct + 
+                              first_device_type + browser_group, 
                   data = book, 
                   family = binomial(link = "logit")))
 
-# get probabilities of booking
-book$is_booked_p <- predict(lr, type = "response")
-tapply(book$is_booked_p, book$is_booked, mean)
+# get propensity scores
+book$ps_lr <- predict(lr, type = "response")
+tapply(book$ps_lr, book$is_booked, mean)
 ```
 
+### BART
+
+```{r}
+# convert variables for BART model
+book$gender <- as.factor(book$gender)
+book$first_device_type <- as.factor(book$gender)
+book$browser_group <- as.factor(book$browser_group)
+book$is_direct <- as.factor(book$is_direct)
+```
+
+```{r, cache = TRUE}
+# try BART on sample data first
+# consider running analysis on sample of data only due to computational limits
+book_sample <- sample_n(book, size = 100, replace = FALSE)
+gbart(x.train = as.data.frame(book_sample %>% 
+                                select(age, gender, first_device_type, 
+                                       browser_group, is_direct)), 
+      y.train = book_sample$is_direct,
+      type = "lbart")
+```
+
+
+```{r, include=FALSE, eval=FALSE}
+# run linear regression as sniff test
+summary(lm(is_booked ~ age + gender + is_direct + 
+                              first_device_type + browser_group, 
+                  data = book))
+```
+
+
+### Matching
+```{r, cache = TRUE}
+# matching
+matched_lr <- matching(z = book$is_direct, 
+                       score = book$ps_lr, 
+                       replace = TRUE)$cnts
+```
+
+
+### Balance
+```{r}
+bal_lr <- balance(book, 
+                  treat = book$is_mkt, 
+                  matched = matched_lr, 
+                  estimand = "ATT")
+```
+
+
+
+### CART
+Classification and Regression Trees
+
+
+### BART
+Bayesian Additive Regression Trees
+
+# Matching
+
+## 1-1 Matching
+
+## Inverse Probability Treatment Weighting
+
+# Causal Effect Estimation
