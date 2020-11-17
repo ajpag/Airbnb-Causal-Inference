@@ -28,7 +28,7 @@ if(!requireNamespace("BART"))
 #memory.limit(size = 4095)
 ```
 
-```{r}
+```{r, warning = FALSE, message = FALSE}
 library(arm)
 library(BART) # Bayesian Additive Regression Trees
 library(here)
@@ -45,6 +45,13 @@ knitr::opts_chunk$set(echo = TRUE)
 # load bookings data
 book <- read_csv(here("data", "bookings.csv"))
 ```
+
+```{r}
+# due to computational limits, try sampling data first
+n <- 40000
+book_sample <- sample_n(book, size = n, replace = FALSE)
+```
+
 
 # Exploratory Data Analysis
 
@@ -64,39 +71,16 @@ See Tableau dashboard link below:
 
 ```{r}
 # see preliminary effects using logistic model
-summary(lr <- glm(is_booked ~ age + gender + is_direct + 
+summary(lr <- glm(is_booked ~ age + gender + treat + 
                               first_device_type + browser_group, 
-                  data = book, 
+                  data = book_sample, 
                   family = binomial(link = "logit")))
 
 # get propensity scores
-book$ps_lr <- predict(lr, type = "response")
-tapply(book$ps_lr, book$is_booked, mean)
+book_sample$ps_lr <- predict(lr, type = "response")
+tapply(book_sample$ps_lr, book_sample$is_booked, mean)
 ```
 
-### BART
-
-```{r}
-# convert variables for BART model
-book$gender <- as.factor(book$gender)
-book$first_device_type <- as.factor(book$first_device_type)
-book$browser_group <- as.factor(book$browser_group)
-```
-
-```{r, cache = TRUE}
-# try BART on sample data first
-# consider running analysis on sample of data only due to computational limits
-book_sample <- sample_n(book, size = 100, replace = FALSE)
-bart <- gbart(x.train = as.data.frame(book_sample %>% 
-                                select(age, gender, first_device_type, 
-                                       browser_group, is_direct)),  
-              y.train = book_sample$is_booked,
-              type = "lbart",
-              seed = 14,
-              mc.cores = 2)
-# add prop scores to df
-book_sample$ps_bart <- bart$prob.train.mean
-```
 
 ```{r}
 # define color palette for graphs
@@ -104,37 +88,76 @@ col.pal <- c("#999999", "#E69F00", "#56B4E9", "#777777")
 
 # plot propensity scores
 book_sample %>% 
-  ggplot(aes(x = ps_bart, fill = as.factor(is_booked))) +
+  ggplot(aes(x = ps_lr, fill = as.factor(is_booked))) +
   geom_histogram(alpha = 0.5) + 
   labs(title = "Propensity Score Distribution: BART") + 
   theme(legend.position = "bottom") +
   scale_fill_manual(values = col.pal)
+```
+
+
+### BART
+
+```{r}
+# convert variables for BART model
+book_sample$gender <- as.factor(book_sample$gender)
+book_sample$first_device_type <- as.factor(book_sample$first_device_type)
+book_sample$browser_group <- as.factor(book_sample$browser_group)
+```
+
+```{r, cache = TRUE}
+# try BART on sample data first
+# consider running analysis on sample of data only due to computational limits
+#book_sample <- sample_n(book, size = 100, replace = FALSE)
+#bart <- gbart(x.train = as.data.frame(book_sample %>% 
+#                                select(age, gender, first_device_type, 
+#                                       browser_group, treat)),  
+#              y.train = book_sample$is_booked,
+#              type = "lbart",
+#              seed = 14,
+#              mc.cores = 2)
+# add prop scores to df
+#book_sample$ps_bart <- bart$prob.train.mean
+# run predictions on full dataset
+```
+
+```{r}
+# define color palette for graphs
+col.pal <- c("#999999", "#E69F00", "#56B4E9", "#777777")
+
+# plot propensity scores
+#book_sample %>% 
+#  ggplot(aes(x = ps_bart, fill = as.factor(is_booked))) +
+#  geom_histogram(alpha = 0.5) + 
+#  labs(title = "Propensity Score Distribution: BART") + 
+#  theme(legend.position = "bottom") +
+#  scale_fill_manual(values = col.pal)
 ``` 
 
 
 ```{r, include=FALSE, eval=FALSE}
 # run linear regression as sniff test
-summary(lm(is_booked ~ age + gender + is_direct + 
-                              first_device_type + browser_group, 
-                  data = book))
+#summary(lm(is_booked ~ age + gender + treat + 
+#                              first_device_type + browser_group, 
+#                  data = book))
 ```
 
 
 ### Matching
 ```{r, cache = TRUE}
 # matching
-matched_lr <- matching(z = book$is_direct, 
-                       score = book$ps_lr, 
+matched_lr <- matching(z = book_sample$treat, 
+                       score = book_sample$ps_lr, 
                        replace = TRUE)$cnts
 ```
 
 
 ### Balance
 ```{r}
-bal_lr <- balance(book, 
-                  treat = book$is_mkt, 
-                  matched = matched_lr, 
-                  estimand = "ATT")
+#bal_lr <- balance(book_sample, 
+#                  treat = book_sample$treat, 
+#                  matched = matched_lr, 
+#                  estimand = "ATT")
 ```
 
 

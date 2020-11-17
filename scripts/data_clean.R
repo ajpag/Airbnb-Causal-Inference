@@ -73,5 +73,20 @@ paste0("Data cleaning complete! Data is stored in: ", path_out)
 records <- nrow(book)
 fields <- ncol(book)
 
+################## Write to csv ##################
+print("Writing formatted file to csv..")
+# write to csv
+file_out <- "bookings_sample.csv"
+path_out <- "data"
+sample_size <- 40000
+book_sample <- sample_n(book, sample_size, replace = FALSE)
+write_csv(book, here(path_out, file_out))
+paste0("Data cleaning complete! Data is stored in: ", path_out)
+
+records_sample <- nrow(book_sample)
+fields_sample <- ncol(book_sample)
+
 paste0("Original Dataset: ", records_raw, " rows and ", fields_raw, " columns.")
 paste0("Final Dataset: ", records, " rows and ", fields, " columns.")
+paste0("Final Sampled Dataset: ", records_sample, " rows and ", 
+                                   fields_sample, " columns.")
