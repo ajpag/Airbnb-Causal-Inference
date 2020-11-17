@@ -29,21 +29,17 @@ n_distinct(dat$id)==nrow(dat)
 
 # all first active before sign up?
 sum(dat$date_first_active<=dat$date_account_created)==nrow(dat)
-
-# days to sign up calculated correctly?
-dat <- dat %>% mutate(days_to_signup=difftime(date_account_created,date_first_active,units='days'))
-sum(dat$days_to_signup!=dat$days_diff)
 ```
-# Treatment: Marketing or not?
+# Treatment: direct marketing or not?
 ```{r}
-dat %>% group_by(is_mkt) %>%
+dat %>% group_by(treat) %>%
   summarise(n=n()) %>%
-  ggplot(aes(factor(ifelse(is_mkt==1,'treat','control')),n,label=n)) +
+  ggplot(aes(factor(ifelse(treat==1,'treat','control')),n,label=n)) +
   geom_bar(stat='identity',width=.4,fill='coral1') +
   labs(x=element_blank(),y='count') +
   geom_text(position=position_dodge(width=1))
 ```
-**More control than treatment**
+**More control than treatment.**
 
 # Outcome: Booked or not?
 ## Overall distribution
@@ -57,13 +53,13 @@ dat %>% group_by(is_booked) %>%
   geom_text(position=position_dodge(width=1))
 ```
 
-**Overall, more booked than not booked**
+**Overall, more booked than not booked.**
 ## Distributions within treatment and control
 ```{r}
 # within groups
-dat %>% group_by(is_booked,is_mkt) %>%
+dat %>% group_by(is_booked,treat) %>%
   summarise(n=n()) %>%
-  ggplot(aes(factor(ifelse(is_mkt==1,'treat','control')),n,fill=factor(is_booked),label=n)) +
+  ggplot(aes(factor(ifelse(treat==1,'treat','control')),n,fill=factor(is_booked),label=n)) +
   geom_bar(stat='identity',position='dodge') +
   theme(legend.title=element_blank()) +
   labs(x=element_blank(),y="count") +
@@ -73,8 +69,8 @@ dat %>% group_by(is_booked,is_mkt) %>%
     values=c('lightblue','pink')) +
   geom_text(position=position_dodge(width=1))
 ```
-**In treatment group, booked slightly less than not booked**
-**In control group, more booked than not booked**
+**In treatment group, booked slightly less than not booked.**
+**In control group, more booked than not booked.**
 
 # Covariates
 ## Gender
@@ -88,9 +84,9 @@ dat %>% group_by(gender) %>%
   geom_text(position=position_dodge(width=1))
 
 # by groups
-dat %>% group_by(gender,is_mkt) %>%
+dat %>% group_by(gender,treat) %>%
   summarise(n=n()) %>%
-  ggplot(aes(gender,n,label=n,fill=factor(is_mkt))) +
+  ggplot(aes(gender,n,label=n,fill=factor(treat))) +
   geom_bar(stat='identity',position='dodge',width=.4) +
   labs(x=element_blank(),y='count') +
   geom_text(position=position_dodge(width=.5)) +
@@ -100,9 +96,9 @@ dat %>% group_by(gender,is_mkt) %>%
     labels=c('control','treat'),
     values=c('lightblue','pink'))
 ```
-**More female than male, very few other (probably to exclude them?)**
+**More female than male, very few other (probably to exclude them?).**
 **All gender has good overlap.**
-**Within each gender, more control than treat (not well balanced?)**
+**Within each gender, more control than treat (not well balanced?).**
 
 ## Age
 ```{r}
@@ -112,7 +108,7 @@ dat %>% ggplot(aes(age)) +
 
 # age by group
 dat %>% ggplot() +
-  geom_density(aes(age,fill=as.factor(is_mkt)),alpha=.5) +
+  geom_density(aes(age,fill=as.factor(treat)),alpha=.5) +
   scale_fill_manual(
     labels=c('control','treat'),
     values=c('blue','red')
@@ -134,9 +130,9 @@ dat %>% group_by(is_eng) %>%
   geom_text(position=position_dodge(width=1))
 
 # by groups
-dat %>% group_by(is_eng,is_mkt) %>%
+dat %>% group_by(is_eng,treat) %>%
   summarise(n=n()) %>%
-  ggplot(aes(factor(ifelse(is_eng==1,'English','Non-English')),n,label=n,fill=factor(is_mkt))) +
+  ggplot(aes(factor(ifelse(is_eng==1,'English','Non-English')),n,label=n,fill=factor(treat))) +
   geom_bar(stat='identity',position='dodge',width=.4) +
   labs(x=element_blank(),y='count') +
   geom_text(position=position_dodge(width=.5)) +
@@ -161,9 +157,9 @@ dat %>% group_by(browser_group) %>%
   geom_text(position=position_dodge(width=1))
 
 # by groups
-dat %>% group_by(browser_group,is_mkt) %>%
+dat %>% group_by(browser_group,treat) %>%
   summarise(n=n()) %>%
-  ggplot(aes(browser_group,n,label=n,fill=factor(is_mkt))) +
+  ggplot(aes(browser_group,n,label=n,fill=factor(treat))) +
   geom_bar(stat='identity',position='dodge',width=.4) +
   labs(x=element_blank(),y='count') +
   geom_text(position=position_dodge(width=.5)) +
@@ -186,9 +182,9 @@ dat %>% group_by(is_mobile) %>%
   geom_text(position=position_dodge(width=1))
 
 # by groups
-dat %>% group_by(is_mobile,is_mkt) %>%
+dat %>% group_by(is_mobile,treat) %>%
   summarise(n=n()) %>%
-  ggplot(aes(factor(ifelse(is_mobile==1,'mobile','desktop')),n,label=n,fill=factor(is_mkt))) +
+  ggplot(aes(factor(ifelse(is_mobile==1,'mobile','desktop')),n,label=n,fill=factor(treat))) +
   geom_bar(stat='identity',position='dodge',width=.4) +
   labs(x='signup method',y='count') +
   geom_text(position=position_dodge(width=.5)) +
@@ -209,7 +205,7 @@ dat %>% ggplot(aes(days_diff)) +
 
 # age by group
 dat %>% ggplot() +
-  geom_density(aes(days_diff,fill=as.factor(is_mkt)),alpha=.5) +
+  geom_density(aes(days_diff,fill=as.factor(treat)),alpha=.5) +
   scale_fill_manual(
     labels=c('control','treat'),
     values=c('blue','red')
@@ -217,8 +213,8 @@ dat %>% ggplot() +
   theme(legend.title=element_blank())
 ```
 **Assumption: marketing happens after signup behavior.**
-**Zero-inflated days to signup: hard to see overlap and balance**
-**Might switch to binary indicator for new comer signup**
+**Zero-inflated days to signup: hard to see overlap and balance.**
+**Might switch to binary indicator for new comer signup.**
 
 ## New-comer signup?
 ```{r}
@@ -233,9 +229,9 @@ dat %>% group_by(new_signup) %>%
   geom_text(position=position_dodge(width=1))
 
 # by groups
-dat %>% group_by(new_signup,is_mkt) %>%
+dat %>% group_by(new_signup,treat) %>%
   summarise(n=n()) %>%
-  ggplot(aes(factor(ifelse(new_signup==1,'New comer','Old visitor')),n,label=n,fill=factor(is_mkt))) +
+  ggplot(aes(factor(ifelse(new_signup==1,'New comer','Old visitor')),n,label=n,fill=factor(treat))) +
   geom_bar(stat='identity',position='dodge',width=.4) +
   labs(x='sign up customer type',y='count') +
   geom_text(position=position_dodge(width=.5)) +

@@ -1,7 +1,7 @@
 # **Airbnb-Causal-Inference**
 *Diana Liang, Andrew Pagtakhan*
 
-Airbnb Causal Analysis to measure the impact of marketing ad exposure on user bookings
+Airbnb Causal Analysis to measure the impact of direct vs. indirect marketing ad exposure on user bookings
 
 Source: https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/
 
@@ -24,7 +24,7 @@ https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/data
 
 Derived columns:
 
-```is_mkt```: derived from *affiliate_channel*. 0 = "direct", 1 = all other values
+```treat```: derived from *affiliate_channel*. 1 = "direct", 0 = all other values
 
 ```is_booked```:  derived from *country_destination*. 0 = "NDF", 1 = all other values
 
@@ -40,7 +40,7 @@ Derived columns:
 
 Outcome: ```is_booked```
 
-Treatment:```is_mkt```
+Treatment: ```treat```
 
 Covariates: ```age```, ```gender```, ```is_eng```, ```is_mobile```, ```browser_type```, ```days_diff```(too imbalanced to be include?)
 
