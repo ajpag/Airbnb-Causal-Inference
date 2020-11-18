@@ -88,5 +88,4 @@ fields_sample <- ncol(book_sample)
 
 paste0("Original Dataset: ", records_raw, " rows and ", fields_raw, " columns.")
 paste0("Final Dataset: ", records, " rows and ", fields, " columns.")
-paste0("Final Sampled Dataset: ", records_sample, " rows and ", 
-                                   fields_sample, " columns.")
+paste0("Final Sampled Dataset: ", records_sample, " rows and ",  fields_sample, " columns.")
