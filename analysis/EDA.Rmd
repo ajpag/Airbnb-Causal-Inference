@@ -22,7 +22,7 @@ theme_set(theme_bw())
 
 ```{r}
 # read in data
-dat <- read_csv('bookings.csv')
+dat <- read_csv('bookings_sample.csv')
 
 # check duplicates
 n_distinct(dat$id)==nrow(dat)
@@ -39,7 +39,7 @@ dat %>% group_by(treat) %>%
   labs(x=element_blank(),y='count') +
   geom_text(position=position_dodge(width=1))
 ```
-**More control than treatment.**
+**More treat than control.**
 
 # Outcome: Booked or not?
 ## Overall distribution
@@ -53,7 +53,7 @@ dat %>% group_by(is_booked) %>%
   geom_text(position=position_dodge(width=1))
 ```
 
-**Overall, more booked than not booked.**
+**Overall, slightly more booked than not booked.**
 ## Distributions within treatment and control
 ```{r}
 # within groups
@@ -69,8 +69,8 @@ dat %>% group_by(is_booked,treat) %>%
     values=c('lightblue','pink')) +
   geom_text(position=position_dodge(width=1))
 ```
-**In treatment group, booked slightly less than not booked.**
-**In control group, more booked than not booked.**
+**In treatment group, booked more than not booked.**
+**In control group, booked slightly less than not booked.**
 
 # Covariates
 ## Gender
@@ -98,7 +98,7 @@ dat %>% group_by(gender,treat) %>%
 ```
 **More female than male, very few other (probably to exclude them?).**
 **All gender has good overlap.**
-**Within each gender, more control than treat (not well balanced?).**
+**Within each gender, more treat than control.**
 
 ## Age
 ```{r}
@@ -206,6 +206,15 @@ dat %>% ggplot(aes(days_diff)) +
 # age by group
 dat %>% ggplot() +
   geom_density(aes(days_diff,fill=as.factor(treat)),alpha=.5) +
+  scale_fill_manual(
+    labels=c('control','treat'),
+    values=c('blue','red')
+  ) +
+  theme(legend.title=element_blank())
+
+# on log scale
+dat %>% ggplot() +
+  geom_density(aes(log(days_diff+.001),fill=as.factor(treat)),alpha=.5) +
   scale_fill_manual(
     labels=c('control','treat'),
     values=c('blue','red')
