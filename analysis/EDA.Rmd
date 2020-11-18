@@ -52,8 +52,8 @@ dat %>% group_by(is_booked) %>%
   labs(x=element_blank(),y='count') +
   geom_text(position=position_dodge(width=1))
 ```
-
 **Overall, slightly more booked than not booked.**
+
 ## Distributions within treatment and control
 ```{r}
 # within groups
