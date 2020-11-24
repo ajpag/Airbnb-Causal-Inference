@@ -23,6 +23,8 @@ if(!requireNamespace("tidyverse"))
   install.packages("tidyverse")
 if(!requireNamespace("BART"))
   install.packages("BART")
+if(!requireNamespace("broom"))
+  install.packages("broom")
 
 # increase memory limit for matching functions
 # make sure this limit is compatible with the system used to run this code
@@ -32,6 +34,7 @@ memory.limit(3.2e10)
 ```{r, warning = FALSE, message = FALSE}
 library(arm)
 library(BART) # Bayesian Additive Regression Trees
+library(broom)
 library(here)
 library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
@@ -88,7 +91,7 @@ book %>%
 ```
 
 
-### BART
+## BART
 
 ```{r}
 # convert variables for BART model
@@ -146,7 +149,6 @@ book %>%
 ``` 
 
 
-
 ### Matching
 ```{r, cache = TRUE}
 # 1-1 neighbor matching
@@ -154,26 +156,107 @@ matched_bart <- matching(z = book$treat,
                          score = book$ps_bart, 
                          replace = TRUE)$cnts
 # add matched counts to df
-book$nn_cnts <- matched_bart
+book$matched_bart <- matched_bart
 ```
 
 ```{r}
 # inspect top 10 records used for matching
 book %>% 
-  arrange(desc(nn_cnts)) %>% 
-  select(age, gender, is_mobile, browser_group, is_eng, nn_cnts) %>% 
-  top_n(10, nn_cnts)
+  arrange(desc(matched_bart)) %>% 
+  select(age, gender, is_mobile, browser_group, is_eng, matched_bart) %>% 
+  top_n(10, matched_bart)
 ```
-
 
 ### Balance
+
 ```{r}
-#bal_lr <- balance(book_sample, 
-#                  treat = book_sample$treat, 
-#                  matched = matched_lr, 
-#                  estimand = "ATT")
+# one hot encode categorical variables
+one_hot_enc <- function(df) {
+  # to be updated: add parameter to choose columns to convert (and retain as is)
+  df_fin <- df %>% 
+              rownames_to_column() %>% 
+              pivot_longer(cols = c(gender, browser_group)) %>% 
+              add_column(count = 1) %>% 
+              arrange(value) %>% 
+              pivot_wider(id_cols = c(rowname, age, is_mobile, is_eng, 
+                                      treat, matched_bart, is_booked), 
+                          names_from = value, 
+                          values_from = count, 
+                          values_fill = list(count = 0), 
+                          values_fn = list(count = mean)) %>% 
+              arrange(as.integer(rowname)) %>% 
+              select(-rowname)
+  return(df_fin)
+}
 ```
 
+```{r}
+# one-hot encoding for balance metrics
+book_bal <- one_hot_enc(book)
+# compute balance statistics
+bal_bart <- balance(as.matrix(book_bal %>% select(-c(matched_bart, treat))), 
+                    treat = as.matrix(book_bal$treat), 
+                    matched = as.matrix(book_bal$matched_bart), 
+                    estimand = "ATT")
+
+# plot balance
+plot(bal_bart)
+```
+
+#### Inverse Probability Treatment Weighting (IPTW)
+
+Generate IPTW
+
+```{r}
+# Apply Inverse Probability Treatment Weighting (IPTW)
+# use the prop scores from BART model
+
+# number of control vars
+cnt0_bart <- nrow(filter(book, treat == 0))
+
+# raw IPTW
+book$weight_ip_bart <- if_else(book$treat == 0, 
+                       book$ps_bart / (1 - book$ps_bart), 
+                       1)
+
+# normalize weights such that sum of weights for control = number of observed controls
+weight_ip_sum_bart <- filter(book, treat == 0) %>% summarise(sum(weight_ip_bart))
+book$weight_ip_bart_n <- if_else(book$treat == 0, 
+                                 book$weight_ip_bart / weight_ip_sum_bart[[1]] * cnt0,
+                        1)
+# consider capping weights
+```
+
+Balance statistics
+```{r}
+# compute balance statistics
+bal_bart_iptw <- balance(as.matrix(book_bal %>% select(-c(matched_bart, treat))), 
+                    treat = as.matrix(book_bal$treat), 
+                    matched = as.matrix(book$weight_ip_bart_n), 
+                    estimand = "ATT")
+
+# plot balance
+plot(bal_bart_iptw)
+```
+
+
+### Estimate Causal Effects
+
+```{r}
+# run initial logistic regression on restructured data (BART)
+summary(lr_bart <- glm(is_booked ~ age + gender + treat + 
+                              is_mobile + browser_group + is_eng, 
+                  data = book, 
+                  family = binomial(link = "logit"),
+                  weights = book$matched_bart))
+
+# run initial logistic regression on restructured data (BART IPTW)
+summary(lr_bart_iptw <- glm(is_booked ~ age + gender + treat + 
+                              is_mobile + browser_group + is_eng, 
+                  data = book, 
+                  family = binomial(link = "logit"),
+                  weights = book$weight_ip_bart_n))
+```
 
 
 ## CART
