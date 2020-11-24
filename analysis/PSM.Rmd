@@ -21,12 +21,17 @@ library(Hmisc)
 library(survey)
 library(arm)
 library(gbm)
+library(BART)
 library(correlationfunnel)
 library(conflicted)
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
 
 theme_set(theme_bw())
+
+# increase memory limit for matching functions
+# make sure this limit is compatible with the system used to run this code
+memory.limit(3.2e10)
 
 # read in data
 dat <- read_csv('bookings_sample.csv')
@@ -38,7 +43,7 @@ dat <- dat %>% mutate_at(vars(c("gender","browser_group")),as.factor)
 
 # Logistic Regression
 ```{r}
-fit.lr <- glm(treat~is_eng+is_mobile+age+days_diff+gender+browser_group,family=binomial,data=dat)
+fit.lr <- glm(treat~is_eng+is_mobile+age+gender+browser_group,family=binomial,data=dat)
 
 dat$pscores.lr <- predict(fit.lr,type='response')
 
@@ -64,7 +69,7 @@ IPTW.lr <- dat %>%
 
 # Probit Regression
 ```{r}
-fit.prob <- glm(treat~is_eng+is_mobile+age+days_diff+gender+browser_group,family=binomial(link='probit'),data=dat)
+fit.prob <- glm(treat~is_eng+is_mobile+age+gender+browser_group,family=binomial(link='probit'),data=dat)
 
 dat$pscores.prob <- predict(fit.prob,type='response')
 
@@ -89,7 +94,7 @@ IPTW.prob <- dat %>%
 
 # CART
 ```{r}
-fit.cart <- rpart(treat~is_eng+is_mobile+age+days_diff+gender+browser_group,data=dat,method='class') # fit a CART model
+fit.cart <- rpart(treat~is_eng+is_mobile+age+gender+browser_group,data=dat,method='class') # fit a CART model
 
 dat$pscores.cart <- predict(fit.cart,type='prob')[,2] # take probability of assigned=1 as propensity scores
 
@@ -115,7 +120,7 @@ IPTW.cart <- dat %>%
 
 # Random Forest
 ```{r}
-fit.rf <- ranger(treat~is_eng+is_mobile+age+days_diff+gender+browser_group,data=dat)
+fit.rf <- ranger(treat~is_eng+is_mobile+age+gender+browser_group,data=dat)
 
 dat$pscores.rf <- predict(fit.rf,data=dat)$predictions
 
@@ -140,7 +145,7 @@ IPTW.rf <- dat %>%
 
 # GBM
 ```{r}
-fit.gbm <- gbm(treat~is_eng+is_mobile+age+days_diff+gender+browser_group,data=dat)
+fit.gbm <- gbm(treat~is_eng+is_mobile+age+gender+browser_group,data=dat)
 
 dat$pscores.gbm <- predict(fit.gbm)
 
@@ -163,13 +168,60 @@ IPTW.gbm <- dat %>%
   unname()
 ```
 
+# BART
+```{r}
+# run BART on sample data due to computational time
+bart_sample <- 1000
+book_sample <- sample_n(dat, bart_sample)
+# get covariates for model
+xtrain_bart <- as.data.frame(book_sample %>% 
+                               select(age, gender, treat, is_mobile, 
+                                      browser_group, is_eng))
+# run predictions on all data
+xtest_bart <- as.data.frame(dat %>% 
+                                select(age, gender, treat, is_mobile, 
+                                      browser_group, is_eng))
+# fit and predict
+bart <- gbart(x.train = xtrain_bart,  
+              y.train = book_sample$treat,
+              x.test = xtest_bart,
+              type = "lbart",
+              seed = seed,
+              mc.cores = 2)
+
+# add prop scores on full dataset
+dat$pscores.bart <- bart$prob.test.mean
+
+# plot ps
+ggplot(dat) +
+  geom_histogram(aes(pscores.bart,col=factor(treat)),alpha=0) +
+  scale_color_manual(
+    name='Group',
+    labels=c('control','treatment'),
+    values=c('blue','red')
+  )
+
+## one-to-one nearest neighbor w/ replacement
+matches.bart <- matching(z=dat$treat,score=dat$pscores.bart,replace=T)
+weight.bart <- ifelse(dat$treat==0,matches.bart$cnts,1)
+
+## IPTW
+IPTW.bart <- dat %>% 
+  transmute(IPTW=ifelse(treat==1,1,pscores.bart/(1-pscores.bart))) %>% 
+  unlist() %>% 
+  unname()
+```
+
+
+
+# Compare All Methods
 ```{r}
 # recode categorical
 cat <- dat %>% select(gender,browser_group) %>% binarize()
 dat <- bind_cols(dat,cat)
 
 # covariate list
-cov <- c('is_eng','is_mobile','age','days_diff',names(cat))
+cov <- c('is_eng','is_mobile','age',names(cat))
 
 # examine balance
 check_balance <- function(data,covariates,weights){
@@ -205,6 +257,8 @@ balance_rf.nn <- check_balance(dat,cov,weight.rf) %>% mutate(method='RF 1-1NN')
 balance_rf.IPTW <- check_balance(dat,cov,IPTW.rf) %>% mutate(method='RF IPTW')
 balance_gbm.nn <- check_balance(dat,cov,weight.gbm) %>% mutate(method='GBM 1-1NN')
 balance_gbm.IPTW <- check_balance(dat,cov,IPTW.gbm) %>% mutate(method='GBM IPTW')
+balance_bart.nn <- check_balance(dat,cov,weight.bart) %>% mutate(method='BART 1-1NN')
+balance_bart.IPTW <- check_balance(dat,cov,IPTW.bart) %>% mutate(method='BART IPTW')
 
 # store prematch values
 dat_prematch <- balance_lr.nn %>% 
@@ -212,11 +266,11 @@ dat_prematch <- balance_lr.nn %>%
   mutate(method='prematch') %>% 
   select(-matched)
 # store matched values under different method
-dat_balance <- bind_rows(balance_lr.nn,balance_lr.IPTW,balance_prob.nn,balance_prob.IPTW,balance_cart.nn,balance_cart.IPTW,balance_rf.nn,balance_rf.IPTW,balance_gbm.nn,balance_gbm.IPTW) %>%
+dat_balance <- bind_rows(balance_lr.nn,balance_lr.IPTW,balance_prob.nn,balance_prob.IPTW,balance_cart.nn,balance_cart.IPTW,balance_rf.nn,balance_rf.IPTW,balance_gbm.nn,balance_gbm.IPTW,balance_bart.nn,balance_bart.IPTW) %>%
   filter(matched=='matched') %>%
   select(-matched) %>%
   bind_rows(dat_prematch) %>%
-  mutate(method=factor(method,levels=c('prematch','LR 1-1NN','LR IPTW','PR 1-1NN','PR IPTW','CART 1-1NN','CART IPTW','RF 1-1NN','RF IPTW','GBM 1-1NN','GBM IPTW')))
+  mutate(method=factor(method,levels=c('prematch','LR 1-1NN','LR IPTW','PR 1-1NN','PR IPTW','CART 1-1NN','CART IPTW','RF 1-1NN','RF IPTW','GBM 1-1NN','GBM IPTW','BART 1-1NN','BART IPTW')))
 
 # display balance
 ## difference in means
