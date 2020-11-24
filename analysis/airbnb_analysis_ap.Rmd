@@ -222,7 +222,7 @@ book$weight_ip_bart <- if_else(book$treat == 0,
 # normalize weights such that sum of weights for control = number of observed controls
 weight_ip_sum_bart <- filter(book, treat == 0) %>% summarise(sum(weight_ip_bart))
 book$weight_ip_bart_n <- if_else(book$treat == 0, 
-                                 book$weight_ip_bart / weight_ip_sum_bart[[1]] * cnt0,
+                                 book$weight_ip_bart / weight_ip_sum_bart[[1]] * cnt0_bart,
                         1)
 # consider capping weights
 ```
@@ -239,22 +239,21 @@ bal_bart_iptw <- balance(as.matrix(book_bal %>% select(-c(matched_bart, treat)))
 plot(bal_bart_iptw)
 ```
 
+```{r}
+# balance statistics
+bal_bart$diff.means.matched
+bal_bart_iptw$diff.means.matched
+```
+
 
 ### Estimate Causal Effects
 
 ```{r}
-# run initial logistic regression on restructured data (BART)
-summary(lr_bart <- glm(is_booked ~ age + gender + treat + 
-                              is_mobile + browser_group + is_eng, 
-                  data = book, 
-                  family = binomial(link = "logit"),
-                  weights = book$matched_bart))
-
 # run initial logistic regression on restructured data (BART IPTW)
 summary(lr_bart_iptw <- glm(is_booked ~ age + gender + treat + 
                               is_mobile + browser_group + is_eng, 
                   data = book, 
-                  family = binomial(link = "logit"),
+                  family = quasibinomial(link = "logit"),
                   weights = book$weight_ip_bart_n))
 ```
 
