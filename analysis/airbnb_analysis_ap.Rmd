@@ -24,8 +24,9 @@ if(!requireNamespace("tidyverse"))
 if(!requireNamespace("BART"))
   install.packages("BART")
 
-# increase memory limit for matching function
-#memory.limit(size = 4095)
+# increase memory limit for matching functions
+# make sure this limit is compatible with the system used to run this code
+memory.limit(3.2e10)
 ```
 
 ```{r, warning = FALSE, message = FALSE}
@@ -33,9 +34,9 @@ library(arm)
 library(BART) # Bayesian Additive Regression Trees
 library(here)
 library(tidyverse)
-knitr::opts_chunk$set(echo = TRUE)
-
-# set.seed(14)
+knitr::opts_chunk$set(echo = TRUE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
+seed <- 14
+set.seed(seed)
 ```
 
 
@@ -43,13 +44,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r, message = FALSE}
 # load bookings data
-book <- read_csv(here("data", "bookings.csv"))
-```
-
-```{r}
-# due to computational limits, try sampling data first
-n <- 40000
-book_sample <- sample_n(book, size = n, replace = FALSE)
+book <- read_csv(here("data", "bookings_sample.csv"))
 ```
 
 
@@ -62,23 +57,20 @@ See Tableau dashboard link below:
 
 ## Balance
 
-
 # Modeling
 
-## Propensity Scores
-
-### Logistic Regression
+## Logistic Regression
 
 ```{r}
 # see preliminary effects using logistic model
 summary(lr <- glm(is_booked ~ age + gender + treat + 
-                              first_device_type + browser_group, 
-                  data = book_sample, 
+                              is_mobile + browser_group + is_eng, 
+                  data = book, 
                   family = binomial(link = "logit")))
 
 # get propensity scores
-book_sample$ps_lr <- predict(lr, type = "response")
-tapply(book_sample$ps_lr, book_sample$is_booked, mean)
+book$ps_lr <- predict(lr, type = "response")
+tapply(book$ps_lr, book$is_booked, mean)
 ```
 
 
@@ -87,10 +79,10 @@ tapply(book_sample$ps_lr, book_sample$is_booked, mean)
 col.pal <- c("#999999", "#E69F00", "#56B4E9", "#777777")
 
 # plot propensity scores
-book_sample %>% 
+book %>% 
   ggplot(aes(x = ps_lr, fill = as.factor(is_booked))) +
   geom_histogram(alpha = 0.5) + 
-  labs(title = "Propensity Score Distribution: BART") + 
+  labs(title = "Propensity Score Distribution: Logistic Regression") + 
   theme(legend.position = "bottom") +
   scale_fill_manual(values = col.pal)
 ```
@@ -100,55 +92,77 @@ book_sample %>%
 
 ```{r}
 # convert variables for BART model
-book_sample$gender <- as.factor(book_sample$gender)
-book_sample$first_device_type <- as.factor(book_sample$first_device_type)
-book_sample$browser_group <- as.factor(book_sample$browser_group)
+book$gender <- as.factor(book$gender)
+book$first_device_type <- as.factor(book$first_device_type)
+book$browser_group <- as.factor(book$browser_group)
 ```
 
 ```{r, cache = TRUE}
-# try BART on sample data first
-# consider running analysis on sample of data only due to computational limits
-#book_sample <- sample_n(book, size = 100, replace = FALSE)
-#bart <- gbart(x.train = as.data.frame(book_sample %>% 
-#                                select(age, gender, first_device_type, 
-#                                       browser_group, treat)),  
-#              y.train = book_sample$is_booked,
-#              type = "lbart",
-#              seed = 14,
-#              mc.cores = 2)
-# add prop scores to df
-#book_sample$ps_bart <- bart$prob.train.mean
-# run predictions on full dataset
+# run BART on sample data due to computational time
+bart_sample <- 1000
+book_sample <- sample_n(book, bart_sample)
+# get covariates for model
+xtrain_bart <- as.data.frame(book_sample %>% 
+                               select(age, gender, treat, is_mobile, 
+                                      browser_group, is_eng))
+# run predictions on all data
+xtest_bart <- as.data.frame(book %>% 
+                                select(age, gender, treat, is_mobile, 
+                                      browser_group, is_eng))
+
+# fit and predict
+bart <- gbart(x.train = xtrain_bart,  
+              y.train = book_sample$is_booked,
+              x.test = xtest_bart,
+              type = "lbart",
+              seed = seed,
+              mc.cores = 2)
+
+# add prop scores on full dataset
+book$ps_bart <- bart$prob.test.mean
 ```
 
-```{r}
+
+```{r, message=FALSE}
 # define color palette for graphs
 col.pal <- c("#999999", "#E69F00", "#56B4E9", "#777777")
 
+# average propensity scores for plot
+bart_prop <- book %>% 
+             group_by(is_booked) %>% 
+             summarise(avg = mean(ps_bart))
+
 # plot propensity scores
-#book_sample %>% 
-#  ggplot(aes(x = ps_bart, fill = as.factor(is_booked))) +
-#  geom_histogram(alpha = 0.5) + 
-#  labs(title = "Propensity Score Distribution: BART") + 
-#  theme(legend.position = "bottom") +
-#  scale_fill_manual(values = col.pal)
+book %>% 
+  ggplot(aes(x = ps_bart, fill = as.factor(is_booked))) +
+  geom_histogram(alpha = 0.5) + 
+  geom_vline(data = bart_prop, aes(xintercept = avg, 
+                                   colour = as.factor(is_booked))) +
+  labs(title = "Propensity Score Distribution: BART",
+       subtitle = "Vertical Lines: Average propensity scores") + 
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = col.pal) + 
+  scale_color_manual(values = col.pal)
 ``` 
 
-
-```{r, include=FALSE, eval=FALSE}
-# run linear regression as sniff test
-#summary(lm(is_booked ~ age + gender + treat + 
-#                              first_device_type + browser_group, 
-#                  data = book))
-```
 
 
 ### Matching
 ```{r, cache = TRUE}
-# matching
-matched_lr <- matching(z = book_sample$treat, 
-                       score = book_sample$ps_lr, 
-                       replace = TRUE)$cnts
+# 1-1 neighbor matching
+matched_bart <- matching(z = book$treat, 
+                         score = book$ps_bart, 
+                         replace = TRUE)$cnts
+# add matched counts to df
+book$nn_cnts <- matched_bart
+```
+
+```{r}
+# inspect top 10 records used for matching
+book %>% 
+  arrange(desc(nn_cnts)) %>% 
+  select(age, gender, is_mobile, browser_group, is_eng, nn_cnts) %>% 
+  top_n(10, nn_cnts)
 ```
 
 
@@ -162,17 +176,8 @@ matched_lr <- matching(z = book_sample$treat,
 
 
 
-### CART
+## CART
 Classification and Regression Trees
 
-
-### BART
-Bayesian Additive Regression Trees
-
-# Matching
-
-## 1-1 Matching
-
-## Inverse Probability Treatment Weighting
 
 # Causal Effect Estimation

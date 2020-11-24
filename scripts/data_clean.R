@@ -77,10 +77,9 @@ fields <- ncol(book)
 print("Writing formatted file to csv..")
 # write to csv
 file_out <- "bookings_sample.csv"
-path_out <- "data"
 sample_size <- 40000
 book_sample <- sample_n(book, sample_size, replace = FALSE)
-write_csv(book, here(path_out, file_out))
+write_csv(book_sample, here(path_out, file_out))
 paste0("Data cleaning complete! Data is stored in: ", path_out)
 
 records_sample <- nrow(book_sample)
