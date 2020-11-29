@@ -1,5 +1,5 @@
 ---
-# title: "Airbnb: Causal Inference"
+title: "Airbnb: Causal Inference"
 subtitle: "Inferring Causal Effects of Marketing Ads on User Bookings"
 author: "Diana Liang, Andrew Pagtakhan"
 date: "12/4/2020"
@@ -10,20 +10,14 @@ output:
     number_section: true
 ---
 
-```{r setup, include=TRUE, message=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=TRUE, message=FALSE, warning=FALSE}
 
-#library(dplyr)
 library(tidyverse)
 library(here)
-#library(ggplot2)
-#library(lubridate)
+library(gridExtra)
 library(rpart)
 library(ranger)
 library(MatchIt)
-library(optmatch)
-library(Hmisc)
-library(survey)
 library(arm)
 library(gbm)
 library(BART)
@@ -42,21 +36,37 @@ set.seed(seed)
 # increase memory limit for matching functions
 # make sure this limit is compatible with the system used to run this code
 memory.limit(3.2e10)
+
+knitr::opts_chunk$set(echo = TRUE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
 ```
 
-## Load data
-```{r}
+Load data
+```{r load_data}
 # read in data
 dat <- read_csv(here::here('data', 'bookings_sample.csv'))
 
 # convert categorical variables
 dat <- dat %>% mutate_at(vars(c("gender","browser_group")),as.factor)
 
+# Airbnb color palette (for plotting)
+# Source: https://usbrandcolors.com/airbnb-colors/
+col.pal <- c("#FC642D", "#00A699", "#FF5A5F", "#767676", "#484848")
+treat.labs <- c("Indirect Ad", "Direct Ad")
+treat.name <- "Treatment"
 ```
 
+# Exploratory Data Analysis and Overlap
 
-# Logistic Regression
-```{r, cache = TRUE}
+There is sufficient overlap for the covariates between those who received 
+direct marketing ads vs. indirect ads.
+
+See Tableau workbook: 
+https://public.tableau.com/profile/andrew.pagtakhan#!/vizhome/NYU_Causal_Airbnb/Dashboard?publish=yes
+
+# Modeling
+## Logistic Regression
+
+```{r log_reg, cache = TRUE}
 # fit model
 fit.lr <- glm(treat~is_eng+is_mobile+age+gender+browser_group,
               family=binomial,
@@ -64,15 +74,6 @@ fit.lr <- glm(treat~is_eng+is_mobile+age+gender+browser_group,
 
 # extract propensity scores
 dat$pscores.lr <- predict(fit.lr,type='response')
-
-# plot
-ggplot(dat) +
-  geom_histogram(aes(pscores.lr,col=as.factor(treat)),alpha=0) +
-  scale_color_manual(
-    name='Group',
-    labels=c('control','treatment'),
-    values= c('blue','red')
-    )
 
 ## one-to-one nearest neighbor w/ replacement
 matches.lr <- matching(z=dat$treat,score=dat$pscores.lr,replace=T)
@@ -86,8 +87,8 @@ dat$IPTW.lr <- dat %>%
 ```
 
 
-# Probit Regression
-```{r, cache = TRUE}
+## Probit Regression
+```{r prob_reg, cache = TRUE}
 # fit model
 fit.prob <- glm(treat~is_eng+is_mobile+age+gender+browser_group,
                 family=binomial(link='probit'),
@@ -95,15 +96,6 @@ fit.prob <- glm(treat~is_eng+is_mobile+age+gender+browser_group,
 
 # extract propensity scores
 dat$pscores.prob <- predict(fit.prob,type='response')
-
-# plot
-ggplot(dat) +
-  geom_histogram(aes(pscores.prob,col=factor(treat)),alpha=0) +
-  scale_color_manual(
-    name='Group',
-    labels=c('control','treatment'),
-    values=c('blue','red')
-  )
 
 ## one-to-one nearest neighbor w/ replacement
 matches.prob <- matching(z=dat$treat,score=dat$pscores.prob,replace=T)
@@ -116,8 +108,8 @@ dat$IPTW.prob <- dat %>%
   unname()
 ```
 
-# CART
-```{r, cache = TRUE}
+## CART
+```{r cart, cache = TRUE}
 # fit model
 fit.cart <- rpart(treat~is_eng+is_mobile+age+gender+browser_group,
                   data=dat,
@@ -125,14 +117,6 @@ fit.cart <- rpart(treat~is_eng+is_mobile+age+gender+browser_group,
 
 # extract p scores
 dat$pscores.cart <- predict(fit.cart,type='prob')[,2] # take probability of assigned=1 as propensity scores
-
-ggplot(dat) +
-  geom_histogram(aes(pscores.cart,col=factor(treat)),alpha=0) +
-  scale_color_manual(
-    name='Group',
-    labels=c('control','treatment'),
-    values=c('blue','red')
-  )
 
 ## one-to-one nearest neighbor w/ replacement
 matches.cart <- matching(z=dat$treat,score=dat$pscores.cart,replace=T)
@@ -146,20 +130,12 @@ dat$IPTW.cart <- dat %>%
 ```
 
 
-# Random Forest
-```{r, cache = TRUE}
+## Random Forest
+```{r rf, cache = TRUE}
 fit.rf <- ranger(treat~is_eng+is_mobile+age+gender+browser_group,
                  data=dat)
 
 dat$pscores.rf <- predict(fit.rf,data=dat)$predictions
-
-ggplot(dat) +
-  geom_histogram(aes(pscores.rf,col=factor(treat)),alpha=0) +
-  scale_color_manual(
-    name='Group',
-    labels=c('control','treatment'),
-    values=c('blue','red')
-  )
 
 ## one-to-one nearest neighbor w/ replacement
 matches.rf <- matching(z=dat$treat,score=dat$pscores.rf,replace=T)
@@ -172,19 +148,11 @@ dat$IPTW.rf <- dat %>%
   unname()
 ```
 
-# GBM
-```{r, cache = TRUE}
+## GBM
+```{r gbm, cache = TRUE}
 fit.gbm <- gbm(treat~is_eng+is_mobile+age+gender+browser_group,data=dat)
 
 dat$pscores.gbm <- predict(fit.gbm)
-
-ggplot(dat) +
-  geom_histogram(aes(pscores.gbm,col=factor(treat)),alpha=0) +
-  scale_color_manual(
-    name='Group',
-    labels=c('control','treatment'),
-    values=c('blue','red')
-  )
 
 ## one-to-one nearest neighbor w/ replacement
 matches.gbm <- matching(z=dat$treat,score=dat$pscores.gbm,replace=T)
@@ -197,9 +165,8 @@ dat$IPTW.gbm <- dat %>%
   unname()
 ```
 
-# BART
-```{r, cache = TRUE}
-
+## BART
+```{r bart, cache = TRUE}
 # run BART on sample data due to computational time
 bart_sample <- 1000
 book_sample <- sample_n(dat, bart_sample)
@@ -223,15 +190,6 @@ bart <- gbart(x.train = xtrain_bart,
 # add prop scores on full dataset
 dat$pscores.bart <- bart$prob.test.mean
 
-# plot ps
-ggplot(dat) +
-  geom_histogram(aes(pscores.bart,col=factor(treat)),alpha=0) +
-  scale_color_manual(
-    name='Group',
-    labels=c('control','treatment'),
-    values=c('blue','red')
-  )
-
 ## one-to-one nearest neighbor w/ replacement
 matches.bart <- matching(z=dat$treat,score=dat$pscores.bart,replace=T)
 weight.bart <- ifelse(dat$treat==0,matches.bart$cnts,1)
@@ -245,8 +203,122 @@ dat$IPTW.bart <- dat %>%
 
 
 
-# Compare All Methods
+# Model Summaries
+
+## Propensity Scores
+```{r prop_scores}
+# plot propensity scores
+dat %>% 
+  pivot_longer(cols = contains("pscores")) %>% 
+  ggplot(aes(x = value, fill = as.factor(treat))) + 
+  geom_histogram(alpha = 0.5) + 
+  facet_wrap(facets = vars(name), scales = "free") + 
+  labs(title = "Propensity Score Distributions") + 
+  theme(legend.position = "bottom") +
+  scale_fill_manual(name = treat.name,
+                    labels = treat.labs,
+                    values = col.pal)
+```
+
+
+## Balance
+
+```{r balance_rev, message=FALSE}
+# recode categorical
+cat <- dat %>% select(gender,browser_group) %>% binarize()
+dat_bal <- bind_cols(dat,cat)
+
+# get covariates and convert to matrices for balance function
+bal_mat <- as.matrix(dat_bal %>% select(c(contains(c("browser", "gender")), 
+                                      -c("gender", "browser_group","first_browser"),
+                                      c("age", "is_mobile", "is_eng"))))
+bal_treat <- as.matrix(dat_bal$treat)
+
+# matched weights
+match_counts <- list(matches.lr$cnts, dat$IPTW.lr,
+                     matches.prob$cnts, dat$IPTW.prob,
+                     matches.cart$cnts, dat$IPTW.cart,
+                     matches.rf$cnts, dat$IPTW.rf,
+                     matches.gbm$cnts, dat$IPTW.gbm,
+                     matches.bart$cnts, dat$IPTW.bart)
+
+# convert to matrices
+match_mat <- lapply(match_counts, as.matrix)
+
+# compute balance statistics for each model
+bal_list <- lapply(match_mat, 
+                   function(x) {
+                     balance(rawdata = bal_mat, 
+                             treat = bal_treat,
+                             matched = x,
+                             estimand = "ATT")$diff.means.matched
+                   })
+
+# model names
+model_list <- c('LR 1-1NN','LR IPTW',
+                 'PR 1-1NN','PR IPTW',
+                 'CART 1-1NN','CART IPTW',
+                 'RF 1-1NN','RF IPTW',
+                 'GBM 1-1NN','GBM IPTW',
+                 'BART 1-1NN','BART IPTW')
+
+# add model name column
+bal_dfs <- list()
+for (i in 1:length(bal_list)) {
+    bal_df <- as.data.frame(bal_list[[i]]) %>% 
+      rownames_to_column(var = "Covariate")
+    bal_df$model_name <- model_list[[i]]
+    bal_dfs[[i]] <- bal_df
+}
+
+# add pre-matched balance metrics
+bal_df_pre <- as.data.frame(balance(rawdata = bal_mat, 
+                                    treat = bal_treat, 
+                                    # placeholder - not used
+                                    matched = match_counts[[1]], 
+                                    estimand = "ATT")$diff.means.raw) %>% 
+              rownames_to_column(var = "Covariate")
+# add model name
+bal_df_pre$model_name <- "prematch"
+
+
+# combine balance metrics
+bal_df <- rbind(bal_df_pre, bind_rows(bal_dfs))
+
+# plot
+p.md <- ggplot(bal_df, aes(x = model_name, y = Covariate)) + 
+        geom_tile(aes(fill = abs.std.diff)) + 
+        labs(title = "Balance: Standardized Difference in Means") + 
+        scale_fill_gradient(low = "#ffd9dc", high = "#FF5A5F") + 
+        theme(axis.text.x=element_text(angle=45,vjust=.6))
+
+p.sd <- ggplot(bal_df, aes(x = model_name, y = Covariate)) + 
+        geom_tile(aes(fill = ratio)) + 
+        labs(title = "Balance: SD Ratios") +  
+        scale_fill_gradient(low = "#ffd9dc", high = "#FF5A5F") + 
+        theme(axis.text.x=element_text(angle=45,vjust=.6))
+p.md
+#grid.arrange(p.md, p.sd, nrow = 2)
+```
+
 ```{r}
+# best model
+# difference in means
+bal_df %>% 
+  group_by(model_name) %>% 
+  summarise(mean.bal = mean(abs.std.diff)) %>% 
+  arrange(mean.bal)
+
+# ratio
+bal_df %>% 
+  filter(Covariate == "age") %>%
+  group_by(model_name) %>% 
+  summarise(rat = mean(ratio)) %>% 
+  arrange(rat)
+```
+
+
+```{r balance, eval = FALSE, include=FALSE}
 # recode categorical
 cat <- dat %>% select(gender,browser_group) %>% binarize()
 dat <- bind_cols(dat,cat)
@@ -279,17 +351,17 @@ check_balance <- function(data,covariates,weights){
 
 # check balance for each method
 balance_lr.nn <- check_balance(dat,cov,weight.lr) %>% mutate(method='LR 1-1NN')
-balance_lr.IPTW <- check_balance(dat,cov,IPTW.lr) %>% mutate(method='LR IPTW')
+balance_lr.IPTW <- check_balance(dat,cov,dat$IPTW.lr) %>% mutate(method='LR IPTW')
 balance_prob.nn <- check_balance(dat,cov,weight.prob) %>% mutate(method='PR 1-1NN')
-balance_prob.IPTW <- check_balance(dat,cov,IPTW.prob) %>% mutate(method='PR IPTW')
+balance_prob.IPTW <- check_balance(dat,cov,dat$IPTW.prob) %>% mutate(method='PR IPTW')
 balance_cart.nn <- check_balance(dat,cov,weight.cart) %>% mutate(method='CART 1-1NN')
-balance_cart.IPTW <- check_balance(dat,cov,IPTW.cart) %>% mutate(method='CART IPTW')
+balance_cart.IPTW <- check_balance(dat,cov,dat$IPTW.cart) %>% mutate(method='CART IPTW')
 balance_rf.nn <- check_balance(dat,cov,weight.rf) %>% mutate(method='RF 1-1NN')
-balance_rf.IPTW <- check_balance(dat,cov,IPTW.rf) %>% mutate(method='RF IPTW')
+balance_rf.IPTW <- check_balance(dat,cov,dat$IPTW.rf) %>% mutate(method='RF IPTW')
 balance_gbm.nn <- check_balance(dat,cov,weight.gbm) %>% mutate(method='GBM 1-1NN')
-balance_gbm.IPTW <- check_balance(dat,cov,IPTW.gbm) %>% mutate(method='GBM IPTW')
+balance_gbm.IPTW <- check_balance(dat,cov,dat$IPTW.gbm) %>% mutate(method='GBM IPTW')
 balance_bart.nn <- check_balance(dat,cov,weight.bart) %>% mutate(method='BART 1-1NN')
-balance_bart.IPTW <- check_balance(dat,cov,IPTW.bart) %>% mutate(method='BART IPTW')
+balance_bart.IPTW <- check_balance(dat,cov,dat$IPTW.bart) %>% mutate(method='BART IPTW')
 
 # store prematch values
 dat_prematch <- balance_lr.nn %>% 
@@ -318,5 +390,23 @@ dat_balance %>% filter(metrics=='VR') %>%
   theme(axis.text.x=element_text(angle=45,vjust=.6)) +
   ylab('covariates') +
   ggtitle('Ratios of Standard Deviations')
+```
+
+# Estimate Causal Effects
+
+The best model based on balance metrics is [X]
+
+```{r}
+# logistic regression to get final treatment effect
+model_fin <- glm(is_booked ~ is_eng + is_mobile + age + 
+                             gender + browser_group + treat, 
+              family = quasibinomial(link = "probit"),
+              data = dat,
+              weights = dat$IPTW.prob)
+
+# odds
+odds <- exp(model_fin$coefficients["treat"][[1]])
+# probability
+print(prob_treat <- odds / (1 + odds))
 ```
 
