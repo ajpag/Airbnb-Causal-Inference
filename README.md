@@ -42,7 +42,7 @@ Outcome: ```is_booked```
 
 Treatment: ```treat```
 
-Covariates: ```age```, ```gender```, ```is_eng```, ```is_mobile```, ```browser_type```, ```days_diff```(too imbalanced to be include?)
+Covariates: ```age```, ```gender```, ```is_eng```, ```is_mobile```, ```browser_group```
 
 
 
