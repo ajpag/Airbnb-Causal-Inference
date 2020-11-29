@@ -57,10 +57,15 @@ dat <- dat %>% mutate_at(vars(c("gender","browser_group")),as.factor)
 
 # Logistic Regression
 ```{r, cache = TRUE}
-fit.lr <- glm(treat~is_eng+is_mobile+age+gender+browser_group,family=binomial,data=dat)
+# fit model
+fit.lr <- glm(treat~is_eng+is_mobile+age+gender+browser_group,
+              family=binomial,
+              data=dat)
 
+# extract propensity scores
 dat$pscores.lr <- predict(fit.lr,type='response')
 
+# plot
 ggplot(dat) +
   geom_histogram(aes(pscores.lr,col=as.factor(treat)),alpha=0) +
   scale_color_manual(
@@ -74,8 +79,8 @@ matches.lr <- matching(z=dat$treat,score=dat$pscores.lr,replace=T)
 weight.lr <- ifelse(dat$treat==0,matches.lr$cnts,1)
 
 ## IPTW
-IPTW.lr <- dat %>% 
-  transmute(IPTW=ifelse(treat==1,1,pscores.lr/(1-pscores.lr))) %>% 
+dat$IPTW.lr <- dat %>% 
+  transmute(IPTW=if_else(treat==1,1,pscores.lr/(1-pscores.lr))) %>% 
   unlist() %>% 
   unname()
 ```
@@ -83,10 +88,15 @@ IPTW.lr <- dat %>%
 
 # Probit Regression
 ```{r, cache = TRUE}
-fit.prob <- glm(treat~is_eng+is_mobile+age+gender+browser_group,family=binomial(link='probit'),data=dat)
+# fit model
+fit.prob <- glm(treat~is_eng+is_mobile+age+gender+browser_group,
+                family=binomial(link='probit'),
+                data=dat)
 
+# extract propensity scores
 dat$pscores.prob <- predict(fit.prob,type='response')
 
+# plot
 ggplot(dat) +
   geom_histogram(aes(pscores.prob,col=factor(treat)),alpha=0) +
   scale_color_manual(
@@ -100,7 +110,7 @@ matches.prob <- matching(z=dat$treat,score=dat$pscores.prob,replace=T)
 weight.prob <- ifelse(dat$treat==0,matches.prob$cnts,1)
 
 ## IPTW
-IPTW.prob <- dat %>% 
+dat$IPTW.prob <- dat %>% 
   transmute(IPTW=ifelse(treat==1,1,pscores.prob/(1-pscores.prob))) %>% 
   unlist() %>% 
   unname()
@@ -108,8 +118,12 @@ IPTW.prob <- dat %>%
 
 # CART
 ```{r, cache = TRUE}
-fit.cart <- rpart(treat~is_eng+is_mobile+age+gender+browser_group,data=dat,method='class') # fit a CART model
+# fit model
+fit.cart <- rpart(treat~is_eng+is_mobile+age+gender+browser_group,
+                  data=dat,
+                  method='class') # fit a CART model
 
+# extract p scores
 dat$pscores.cart <- predict(fit.cart,type='prob')[,2] # take probability of assigned=1 as propensity scores
 
 ggplot(dat) +
@@ -125,7 +139,7 @@ matches.cart <- matching(z=dat$treat,score=dat$pscores.cart,replace=T)
 weight.cart <- ifelse(dat$treat==0,matches.cart$cnts,1)
 
 ## IPTW
-IPTW.cart <- dat %>% 
+dat$IPTW.cart <- dat %>% 
   transmute(IPTW=ifelse(treat==1,1,pscores.cart/(1-pscores.cart))) %>% 
   unlist() %>% 
   unname()
@@ -134,7 +148,8 @@ IPTW.cart <- dat %>%
 
 # Random Forest
 ```{r, cache = TRUE}
-fit.rf <- ranger(treat~is_eng+is_mobile+age+gender+browser_group,data=dat)
+fit.rf <- ranger(treat~is_eng+is_mobile+age+gender+browser_group,
+                 data=dat)
 
 dat$pscores.rf <- predict(fit.rf,data=dat)$predictions
 
@@ -151,7 +166,7 @@ matches.rf <- matching(z=dat$treat,score=dat$pscores.rf,replace=T)
 weight.rf <- ifelse(dat$treat==0,matches.rf$cnts,1)
 
 ## IPTW
-IPTW.rf <- dat %>% 
+dat$IPTW.rf <- dat %>% 
   transmute(IPTW=ifelse(treat==1,1,pscores.rf/(1-pscores.rf))) %>% 
   unlist() %>% 
   unname()
@@ -176,7 +191,7 @@ matches.gbm <- matching(z=dat$treat,score=dat$pscores.gbm,replace=T)
 weight.gbm <- ifelse(dat$treat==0,matches.gbm$cnts,1)
 
 ## IPTW
-IPTW.gbm <- dat %>% 
+dat$IPTW.gbm <- dat %>% 
   transmute(IPTW=ifelse(treat==1,1,pscores.gbm/(1-pscores.gbm))) %>% 
   unlist() %>% 
   unname()
@@ -220,7 +235,7 @@ matches.bart <- matching(z=dat$treat,score=dat$pscores.bart,replace=T)
 weight.bart <- ifelse(dat$treat==0,matches.bart$cnts,1)
 
 ## IPTW
-IPTW.bart <- dat %>% 
+dat$IPTW.bart <- dat %>% 
   transmute(IPTW=ifelse(treat==1,1,pscores.bart/(1-pscores.bart))) %>% 
   unlist() %>% 
   unname()
