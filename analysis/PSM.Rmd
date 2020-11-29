@@ -1,18 +1,23 @@
 ---
-title: "Propensity Score Matching"
-author: "Diana Liang"
-output: pdf_document
+# title: "Airbnb: Causal Inference"
+subtitle: "Inferring Causal Effects of Marketing Ads on User Bookings"
+author: "Diana Liang, Andrew Pagtakhan"
+date: "12/4/2020"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+    number_section: true
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=TRUE, message=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-setwd('E:/NYU/2020FALL/Causal/project')
-
-library(dplyr)
+#library(dplyr)
 library(tidyverse)
-library(ggplot2)
-library(lubridate)
+library(here)
+#library(ggplot2)
+#library(lubridate)
 library(rpart)
 library(ranger)
 library(MatchIt)
@@ -24,36 +29,45 @@ library(gbm)
 library(BART)
 library(correlationfunnel)
 library(conflicted)
+
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
 
-theme_set(theme_bw())
+#theme_set(theme_bw())
+
+# set seed
+seed <- 14
+set.seed(seed)
 
 # increase memory limit for matching functions
 # make sure this limit is compatible with the system used to run this code
 memory.limit(3.2e10)
+```
 
+## Load data
+```{r}
 # read in data
-dat <- read_csv('bookings_sample.csv')
+dat <- read_csv(here::here('data', 'bookings_sample.csv'))
 
 # convert categorical variables
 dat <- dat %>% mutate_at(vars(c("gender","browser_group")),as.factor)
+
 ```
 
 
 # Logistic Regression
-```{r}
+```{r, cache = TRUE}
 fit.lr <- glm(treat~is_eng+is_mobile+age+gender+browser_group,family=binomial,data=dat)
 
 dat$pscores.lr <- predict(fit.lr,type='response')
 
 ggplot(dat) +
-  geom_histogram(aes(pscores.lr,col=factor(treat)),alpha=0) +
+  geom_histogram(aes(pscores.lr,col=as.factor(treat)),alpha=0) +
   scale_color_manual(
     name='Group',
     labels=c('control','treatment'),
-    values=c('blue','red')
-  )
+    values= c('blue','red')
+    )
 
 ## one-to-one nearest neighbor w/ replacement
 matches.lr <- matching(z=dat$treat,score=dat$pscores.lr,replace=T)
@@ -68,7 +82,7 @@ IPTW.lr <- dat %>%
 
 
 # Probit Regression
-```{r}
+```{r, cache = TRUE}
 fit.prob <- glm(treat~is_eng+is_mobile+age+gender+browser_group,family=binomial(link='probit'),data=dat)
 
 dat$pscores.prob <- predict(fit.prob,type='response')
@@ -93,7 +107,7 @@ IPTW.prob <- dat %>%
 ```
 
 # CART
-```{r}
+```{r, cache = TRUE}
 fit.cart <- rpart(treat~is_eng+is_mobile+age+gender+browser_group,data=dat,method='class') # fit a CART model
 
 dat$pscores.cart <- predict(fit.cart,type='prob')[,2] # take probability of assigned=1 as propensity scores
@@ -119,7 +133,7 @@ IPTW.cart <- dat %>%
 
 
 # Random Forest
-```{r}
+```{r, cache = TRUE}
 fit.rf <- ranger(treat~is_eng+is_mobile+age+gender+browser_group,data=dat)
 
 dat$pscores.rf <- predict(fit.rf,data=dat)$predictions
@@ -144,7 +158,7 @@ IPTW.rf <- dat %>%
 ```
 
 # GBM
-```{r}
+```{r, cache = TRUE}
 fit.gbm <- gbm(treat~is_eng+is_mobile+age+gender+browser_group,data=dat)
 
 dat$pscores.gbm <- predict(fit.gbm)
@@ -169,7 +183,7 @@ IPTW.gbm <- dat %>%
 ```
 
 # BART
-```{r}
+```{r, cache = TRUE}
 # run BART on sample data due to computational time
 bart_sample <- 1000
 book_sample <- sample_n(dat, bart_sample)

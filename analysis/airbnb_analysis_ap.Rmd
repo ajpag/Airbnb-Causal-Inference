@@ -132,15 +132,15 @@ col.pal <- c("#999999", "#E69F00", "#56B4E9", "#777777")
 
 # average propensity scores for plot
 bart_prop <- book %>% 
-             group_by(is_booked) %>% 
+             group_by(treat) %>% 
              summarise(avg = mean(ps_bart))
 
 # plot propensity scores
 book %>% 
-  ggplot(aes(x = ps_bart, fill = as.factor(is_booked))) +
+  ggplot(aes(x = ps_bart, fill = as.factor(treat))) +
   geom_histogram(alpha = 0.5) + 
   geom_vline(data = bart_prop, aes(xintercept = avg, 
-                                   colour = as.factor(is_booked))) +
+                                   colour = as.factor(treat))) +
   labs(title = "Propensity Score Distribution: BART",
        subtitle = "Vertical Lines: Average propensity scores") + 
   theme(legend.position = "bottom") +
