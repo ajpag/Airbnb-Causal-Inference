@@ -199,9 +199,11 @@ dat$IPTW.gbm <- dat %>%
 
 # BART
 ```{r, cache = TRUE}
+
 # run BART on sample data due to computational time
 bart_sample <- 1000
 book_sample <- sample_n(dat, bart_sample)
+
 # get covariates for model
 xtrain_bart <- as.data.frame(book_sample %>% 
                                select(age, gender, treat, is_mobile, 
