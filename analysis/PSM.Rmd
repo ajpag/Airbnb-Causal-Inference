@@ -12,6 +12,7 @@ output:
 
 ```{r setup, include=TRUE, message=FALSE, warning=FALSE}
 
+library(knitr)
 library(tidyverse)
 library(here)
 library(gridExtra)
@@ -27,8 +28,6 @@ library(conflicted)
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
 
-#theme_set(theme_bw())
-
 # set seed
 seed <- 14
 set.seed(seed)
@@ -37,7 +36,12 @@ set.seed(seed)
 # make sure this limit is compatible with the system used to run this code
 memory.limit(3.2e10)
 
-knitr::opts_chunk$set(echo = TRUE, tidy.opts=list(width.cutoff=60), tidy=TRUE)
+knitr::opts_chunk$set(echo = TRUE, 
+                      tidy.opts=list(width.cutoff=60), 
+                      tidy=TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache.lazy = FALSE)
 ```
 
 Load data
@@ -62,6 +66,8 @@ direct marketing ads vs. indirect ads.
 
 See Tableau workbook: 
 https://public.tableau.com/profile/andrew.pagtakhan#!/vizhome/NYU_Causal_Airbnb/Dashboard?publish=yes
+
+Note: Underlying data used for Tableau workbook is ```bookings_sample.csv```
 
 # Modeling
 ## Logistic Regression
@@ -116,7 +122,8 @@ fit.cart <- rpart(treat~is_eng+is_mobile+age+gender+browser_group,
                   method='class') # fit a CART model
 
 # extract p scores
-dat$pscores.cart <- predict(fit.cart,type='prob')[,2] # take probability of assigned=1 as propensity scores
+# take probability of assigned=1 as propensity scores
+dat$pscores.cart <- predict(fit.cart,type='prob')[,2]
 
 ## one-to-one nearest neighbor w/ replacement
 matches.cart <- matching(z=dat$treat,score=dat$pscores.cart,replace=T)
@@ -149,8 +156,10 @@ dat$IPTW.rf <- dat %>%
 ```
 
 ## GBM
-```{r gbm, cache = TRUE}
-fit.gbm <- gbm(treat~is_eng+is_mobile+age+gender+browser_group,data=dat)
+```{r gbm, cache = TRUE, message=FALSE}
+fit.gbm <- gbm(treat~is_eng+is_mobile+age+gender+browser_group,
+               data=dat,
+               distribution = "bernoulli")
 
 dat$pscores.gbm <- predict(fit.gbm)
 
@@ -183,6 +192,7 @@ xtest_bart <- as.data.frame(dat %>%
 bart <- gbart(x.train = xtrain_bart,  
               y.train = book_sample$treat,
               x.test = xtest_bart,
+              printevery = FALSE,
               type = "lbart",
               seed = seed,
               mc.cores = 2)
@@ -302,19 +312,22 @@ p.md
 ```
 
 ```{r}
-# best model
-# difference in means
-bal_df %>% 
+# best model based on difference in means
+kable(bal_df %>% 
   group_by(model_name) %>% 
   summarise(mean.bal = mean(abs.std.diff)) %>% 
-  arrange(mean.bal)
+  arrange(mean.bal), 
+  caption = "Absolute Standardized Difference in Means")
+```
 
+```{r, include=FALSE, eval=FALSE}
 # ratio
-bal_df %>% 
+kable(bal_df %>% 
   filter(Covariate == "age") %>%
   group_by(model_name) %>% 
   summarise(rat = mean(ratio)) %>% 
-  arrange(rat)
+  arrange(rat),
+  caption = "Standard Deviation Ratios")
 ```
 
 
@@ -396,17 +409,38 @@ dat_balance %>% filter(metrics=='VR') %>%
 
 The best model based on balance metrics is [X]
 
+
+# Estimate Causal Effects
+
+## Treatment Effect for Best Model
+
+Based on the balance metrics, the Probit Regression using IPTW Matching 
+was the best model.
 ```{r}
 # logistic regression to get final treatment effect
 model_fin <- glm(is_booked ~ is_eng + is_mobile + age + 
                              gender + browser_group + treat, 
-              family = quasibinomial(link = "probit"),
+              family = quasibinomial(link = "logit"),
               data = dat,
               weights = dat$IPTW.prob)
 
 # odds
 odds <- exp(model_fin$coefficients["treat"][[1]])
 # probability
-print(prob_treat <- odds / (1 + odds))
+paste0("Treatment Effect: ", prob_treat <- odds / (1 + odds))
+```
+
+## Treatment effect for all models
+```{r}
+# treatment effect for all models
+effects_list <- lapply(match_counts, 
+                       function(x) {
+                         glm(is_booked ~ is_eng + is_mobile + age + 
+                             gender + browser_group + treat, 
+                             family = quasibinomial(link = "logit"),
+                             data = dat,
+                             weights = x) 
+                         }
+                       )
 ```
 
