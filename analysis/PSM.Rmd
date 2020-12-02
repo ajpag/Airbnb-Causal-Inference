@@ -70,28 +70,6 @@ https://public.tableau.com/profile/andrew.pagtakhan#!/vizhome/NYU_Causal_Airbnb/
 
 Note: Underlying data used for Tableau workbook is ```bookings_sample.csv```
 
-```{r desc_stats, eval = FALSE, include=FALSE}
-# descriptive statistics
-# output used for PPT only
-# only renders in HTML
-table1::label(dat$age) <- "Age"
-table1::label(dat$browser_group) <- "Browser Group"
-<<<<<<< HEAD
-table1::label(dat$gender) <- "Gender"
-table1::label(dat$is_eng) <- "Language (1 = English, 0 = Other)"
-table1::label(dat$first_device_type) <- "Device"
-
-table1::table1(~age + browser_group + gender + 
-                is_eng + first_device_type, data = dat)
-=======
-table1::label(dat$is_eng) <- "Language (1 = English, 0 = Other)"
-table1::label(dat$first_device_type) <- "Device"
-
-table1::table1(~age + browser_group + is_eng + first_device_type, data = dat)
->>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
-```
-
-
 # Modeling
 ## Logistic Regression
 
@@ -201,10 +179,6 @@ dat$IPTW.gbm <- dat %>%
 
 ```{r bart_cause, cache = TRUE}
 # try bartCause
-# run BART on sample data due to computational time
-#bart_sample <- 1000
-#book_sample <- sample_n(dat, bart_sample)
-
 
 # get covariates for model
 xtrain_bart <- as.data.frame(dat %>% 
@@ -346,7 +320,7 @@ kable(bal_df %>%
   caption = "Absolute Standardized Difference in Means")
 ```
 
-<<<<<<< HEAD
+
 ```{r}
 # best model on sd ratios
 kable(bal_df %>% filter(Covariate == "age") %>%
@@ -354,16 +328,6 @@ kable(bal_df %>% filter(Covariate == "age") %>%
     summarise(sd.ratio = mean(ratio)) %>% 
     arrange(sd.ratio), 
     caption = "Standard Deviation Ratios")
-=======
-```{r, include=FALSE, eval=FALSE}
-# ratio
-kable(bal_df %>% 
-  filter(Covariate == "age") %>%
-  group_by(model_name) %>% 
-  summarise(rat = mean(ratio)) %>% 
-  arrange(rat),
-  caption = "Standard Deviation Ratios")
->>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 ```
 
 
@@ -377,14 +341,11 @@ sd ratio to 1 is BART IPTW.
 
 ## Treatment Effect for Best Model
 
-<<<<<<< HEAD
-=======
 
 # Estimate Causal Effects
 
 ## Treatment Effect for Best Model
 
->>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 Based on the balance metrics, the Probit Regression using IPTW Matching 
 was the best model.
 ```{r}
@@ -419,7 +380,6 @@ eff_dfs <- list()
 for (i in 1:length(effects_list)) {
     eff_df <- as.data.frame(effects_list[[i]]$coefficients["treat"])
     eff_df$model_name <- model_list[[i]]
-<<<<<<< HEAD
     eff_dfs[[i]] <- eff_df
 }
 
@@ -428,9 +388,5 @@ eff_fin <- bind_rows(eff_dfs)
 colnames(eff_fin) <- c("treat_eff", "model_name")
 rownames(eff_fin) <- NULL
 kable(eff_fin, caption = "Treatment Effects: All Models")
-=======
-    eff_dfs[[i]] <- bal_df
-}
->>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 ```
 
