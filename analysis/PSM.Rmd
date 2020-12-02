@@ -199,20 +199,12 @@ dat$IPTW.gbm <- dat %>%
 
 ## BART
 
-<<<<<<< HEAD
-```{r bart}
-# try bartCause
-# run BART on sample data due to computational time
-##bart_sample <- 1000
-##book_sample <- sample_n(dat, bart_sample)
-=======
 ```{r bart_cause, cache = TRUE}
 # try bartCause
 # run BART on sample data due to computational time
 #bart_sample <- 1000
 #book_sample <- sample_n(dat, bart_sample)
 
->>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 
 # get covariates for model
 xtrain_bart <- as.data.frame(dat %>% 
@@ -226,18 +218,13 @@ bart <- bartc(response = dat$is_booked,
               method.rsp = "bart",
               method.trt = "bart",
               estimand = "att",
-<<<<<<< HEAD
               verbose = FALSE)
 
 # get propensity scores
 dat$pscores.bart <- bart$p.score
-=======
-              verbose = TRUE)
 
 # get propensity scores
 dat$pscores.bart <- bart$p.score
-hist(dat$pscores.bart)
->>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 
 ## one-to-one nearest neighbor w/ replacement
 matches.bart <- matching(z=dat$treat,score=dat$pscores.bart,replace=T)
@@ -382,7 +369,8 @@ kable(bal_df %>%
 
 # Estimate Causal Effects
 
-The best model based on balance metrics is [X]
+The best model based on the lowest average balance metric and closest 
+sd ratio to 1 is BART IPTW.
 
 
 # Estimate Causal Effects
