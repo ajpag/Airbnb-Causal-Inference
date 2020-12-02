@@ -18,7 +18,7 @@ library(here)
 library(gridExtra)
 library(rpart)
 library(ranger)
-library(MatchIt)
+library(MatchIt) # remove?
 library(arm)
 library(gbm)
 library(correlationfunnel)
@@ -76,10 +76,19 @@ Note: Underlying data used for Tableau workbook is ```bookings_sample.csv```
 # only renders in HTML
 table1::label(dat$age) <- "Age"
 table1::label(dat$browser_group) <- "Browser Group"
+<<<<<<< HEAD
+table1::label(dat$gender) <- "Gender"
+table1::label(dat$is_eng) <- "Language (1 = English, 0 = Other)"
+table1::label(dat$first_device_type) <- "Device"
+
+table1::table1(~age + browser_group + gender + 
+                is_eng + first_device_type, data = dat)
+=======
 table1::label(dat$is_eng) <- "Language (1 = English, 0 = Other)"
 table1::label(dat$first_device_type) <- "Device"
 
 table1::table1(~age + browser_group + is_eng + first_device_type, data = dat)
+>>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 ```
 
 
@@ -175,7 +184,7 @@ fit.gbm <- gbm(treat~is_eng+is_mobile+age+gender+browser_group,
                data=dat,
                distribution = "bernoulli")
 
-dat$pscores.gbm <- predict(fit.gbm)
+dat$pscores.gbm <- predict(fit.gbm, type = "response")
 
 ## one-to-one nearest neighbor w/ replacement
 matches.gbm <- matching(z=dat$treat,score=dat$pscores.gbm,replace=T)
@@ -190,12 +199,20 @@ dat$IPTW.gbm <- dat %>%
 
 ## BART
 
+<<<<<<< HEAD
+```{r bart}
+# try bartCause
+# run BART on sample data due to computational time
+##bart_sample <- 1000
+##book_sample <- sample_n(dat, bart_sample)
+=======
 ```{r bart_cause, cache = TRUE}
 # try bartCause
 # run BART on sample data due to computational time
 #bart_sample <- 1000
 #book_sample <- sample_n(dat, bart_sample)
 
+>>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 
 # get covariates for model
 xtrain_bart <- as.data.frame(dat %>% 
@@ -209,11 +226,18 @@ bart <- bartc(response = dat$is_booked,
               method.rsp = "bart",
               method.trt = "bart",
               estimand = "att",
+<<<<<<< HEAD
+              verbose = FALSE)
+
+# get propensity scores
+dat$pscores.bart <- bart$p.score
+=======
               verbose = TRUE)
 
 # get propensity scores
 dat$pscores.bart <- bart$p.score
 hist(dat$pscores.bart)
+>>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 
 ## one-to-one nearest neighbor w/ replacement
 matches.bart <- matching(z=dat$treat,score=dat$pscores.bart,replace=T)
@@ -322,6 +346,7 @@ p.sd <- ggplot(bal_df, aes(x = model_name, y = Covariate)) +
         scale_fill_gradient(low = "#ffd9dc", high = "#FF5A5F") + 
         theme(axis.text.x=element_text(angle=45,vjust=.6))
 p.md
+p.sd
 #grid.arrange(p.md, p.sd, nrow = 2)
 ```
 
@@ -334,6 +359,15 @@ kable(bal_df %>%
   caption = "Absolute Standardized Difference in Means")
 ```
 
+<<<<<<< HEAD
+```{r}
+# best model on sd ratios
+kable(bal_df %>% filter(Covariate == "age") %>%
+    group_by(model_name) %>% 
+    summarise(sd.ratio = mean(ratio)) %>% 
+    arrange(sd.ratio), 
+    caption = "Standard Deviation Ratios")
+=======
 ```{r, include=FALSE, eval=FALSE}
 # ratio
 kable(bal_df %>% 
@@ -342,82 +376,9 @@ kable(bal_df %>%
   summarise(rat = mean(ratio)) %>% 
   arrange(rat),
   caption = "Standard Deviation Ratios")
+>>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 ```
 
-
-```{r balance, eval = FALSE, include=FALSE}
-# recode categorical
-cat <- dat %>% select(gender,browser_group) %>% binarize()
-dat <- bind_cols(dat,cat)
-
-# covariate list
-cov <- c('is_eng','is_mobile','age',names(cat))
-
-# examine balance
-check_balance <- function(data,covariates,weights){
-  out <- list()
-  for(cov in covariates){
-    prematch_mean_trt <- sapply(data[data$treat==1,cov],mean)
-    prematch_mean_ctr <- sapply(data[data$treat==0,cov],mean)
-    matched_mean_trt <- weighted.mean(t(data[data$treat==1,cov]),weights[data$treat==1])
-    matched_mean_ctr <- weighted.mean(t(data[data$treat==0,cov]),weights[data$treat==0])
-    prematch_mean_diff <- ifelse(n_distinct(data[,cov])==2,prematch_mean_trt-prematch_mean_ctr,(prematch_mean_trt-prematch_mean_ctr)/sapply(data[data$treat==1,cov],sd))
-    matched_mean_diff <- ifelse(n_distinct(data[,cov])==2,matched_mean_trt-matched_mean_ctr,(matched_mean_trt-matched_mean_ctr)/sapply(data[data$treat==1,cov],sd))
-    prematch_sd_r <- sapply(data[data$treat==0,cov],sd)/sapply(data[data$treat==1,cov],sd)
-    matched_sd_r <- sqrt(wtd.var(t(data[data$treat==0,cov]),weights[data$treat==0]))/sqrt(wtd.var(t(data[data$treat==1,cov]),weights[data$treat==1]))
-    # format output as one df for each cov
-    out[[cov]] <- tibble(cov,prematch_mean_diff,matched_mean_diff,prematch_sd_r,matched_sd_r)
-    out[[cov]] <- tibble(cov=rep(cov,4),
-                         metrics=rep(c('SMD','VR'),each=2),
-                         matched=rep(c('prematch','matched'),2),
-                         values=c(prematch_mean_diff,matched_mean_diff,prematch_sd_r,matched_sd_r))
-  }
-  out_df <- bind_rows(out)
-  return(out_df)
-}
-
-# check balance for each method
-balance_lr.nn <- check_balance(dat,cov,weight.lr) %>% mutate(method='LR 1-1NN')
-balance_lr.IPTW <- check_balance(dat,cov,dat$IPTW.lr) %>% mutate(method='LR IPTW')
-balance_prob.nn <- check_balance(dat,cov,weight.prob) %>% mutate(method='PR 1-1NN')
-balance_prob.IPTW <- check_balance(dat,cov,dat$IPTW.prob) %>% mutate(method='PR IPTW')
-balance_cart.nn <- check_balance(dat,cov,weight.cart) %>% mutate(method='CART 1-1NN')
-balance_cart.IPTW <- check_balance(dat,cov,dat$IPTW.cart) %>% mutate(method='CART IPTW')
-balance_rf.nn <- check_balance(dat,cov,weight.rf) %>% mutate(method='RF 1-1NN')
-balance_rf.IPTW <- check_balance(dat,cov,dat$IPTW.rf) %>% mutate(method='RF IPTW')
-balance_gbm.nn <- check_balance(dat,cov,weight.gbm) %>% mutate(method='GBM 1-1NN')
-balance_gbm.IPTW <- check_balance(dat,cov,dat$IPTW.gbm) %>% mutate(method='GBM IPTW')
-balance_bart.nn <- check_balance(dat,cov,weight.bart) %>% mutate(method='BART 1-1NN')
-balance_bart.IPTW <- check_balance(dat,cov,dat$IPTW.bart) %>% mutate(method='BART IPTW')
-
-# store prematch values
-dat_prematch <- balance_lr.nn %>% 
-  filter(matched=='prematch') %>% 
-  mutate(method='prematch') %>% 
-  select(-matched)
-# store matched values under different method
-dat_balance <- bind_rows(balance_lr.nn,balance_lr.IPTW,balance_prob.nn,balance_prob.IPTW,balance_cart.nn,balance_cart.IPTW,balance_rf.nn,balance_rf.IPTW,balance_gbm.nn,balance_gbm.IPTW,balance_bart.nn,balance_bart.IPTW) %>%
-  filter(matched=='matched') %>%
-  select(-matched) %>%
-  bind_rows(dat_prematch) %>%
-  mutate(method=factor(method,levels=c('prematch','LR 1-1NN','LR IPTW','PR 1-1NN','PR IPTW','CART 1-1NN','CART IPTW','RF 1-1NN','RF IPTW','GBM 1-1NN','GBM IPTW','BART 1-1NN','BART IPTW')))
-
-# display balance
-## difference in means
-dat_balance %>% filter(metrics=='SMD') %>%
-  ggplot(aes(method,cov,fill=values)) +
-  geom_tile() +
-  theme(axis.text.x=element_text(angle=45,vjust=.6)) +
-  ylab('covariates') +
-  ggtitle('Standardized Difference in Means')
-## ratios of standard deviations
-dat_balance %>% filter(metrics=='VR') %>%
-  ggplot(aes(method,cov,fill=values)) +
-  geom_tile() +
-  theme(axis.text.x=element_text(angle=45,vjust=.6)) +
-  ylab('covariates') +
-  ggtitle('Ratios of Standard Deviations')
-```
 
 # Estimate Causal Effects
 
@@ -428,6 +389,14 @@ The best model based on balance metrics is [X]
 
 ## Treatment Effect for Best Model
 
+<<<<<<< HEAD
+=======
+
+# Estimate Causal Effects
+
+## Treatment Effect for Best Model
+
+>>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 Based on the balance metrics, the Probit Regression using IPTW Matching 
 was the best model.
 ```{r}
@@ -436,7 +405,7 @@ model_fin <- glm(is_booked ~ is_eng + is_mobile + age +
                              gender + browser_group + treat, 
               family = quasibinomial(link = "logit"),
               data = dat,
-              weights = dat$IPTW.prob)
+              weights = dat$IPTW.bart)
 
 # odds
 odds <- exp(model_fin$coefficients["treat"][[1]])
@@ -462,7 +431,18 @@ eff_dfs <- list()
 for (i in 1:length(effects_list)) {
     eff_df <- as.data.frame(effects_list[[i]]$coefficients["treat"])
     eff_df$model_name <- model_list[[i]]
+<<<<<<< HEAD
+    eff_dfs[[i]] <- eff_df
+}
+
+# final treatment effects for each model
+eff_fin <- bind_rows(eff_dfs)
+colnames(eff_fin) <- c("treat_eff", "model_name")
+rownames(eff_fin) <- NULL
+kable(eff_fin, caption = "Treatment Effects: All Models")
+=======
     eff_dfs[[i]] <- bal_df
 }
+>>>>>>> 70f639ea480d7b67ee3262868fbd3320fa125824
 ```
 
