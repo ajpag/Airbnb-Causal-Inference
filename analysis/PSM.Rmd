@@ -11,7 +11,7 @@ output:
 ---
 
 ```{r setup, include=TRUE, message=FALSE, warning=FALSE}
-
+library(bartCause)
 library(knitr)
 library(tidyverse)
 library(here)
@@ -21,9 +21,9 @@ library(ranger)
 library(MatchIt)
 library(arm)
 library(gbm)
-library(BART)
 library(correlationfunnel)
 library(conflicted)
+library(table1)
 
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
@@ -45,7 +45,7 @@ knitr::opts_chunk$set(echo = TRUE,
 ```
 
 Load data
-```{r load_data}
+```{r load_data, message=FALSE, warning=FALSE}
 # read in data
 dat <- read_csv(here::here('data', 'bookings_sample.csv'))
 
@@ -64,10 +64,24 @@ treat.name <- "Treatment"
 There is sufficient overlap for the covariates between those who received 
 direct marketing ads vs. indirect ads.
 
-See Tableau workbook: 
+See Tableau workbook for interactive exploration: 
 https://public.tableau.com/profile/andrew.pagtakhan#!/vizhome/NYU_Causal_Airbnb/Dashboard?publish=yes
 
+
 Note: Underlying data used for Tableau workbook is ```bookings_sample.csv```
+
+```{r desc_stats, eval = FALSE, include=FALSE}
+# descriptive statistics
+# output used for PPT only
+# only renders in HTML
+table1::label(dat$age) <- "Age"
+table1::label(dat$browser_group) <- "Browser Group"
+table1::label(dat$is_eng) <- "Language (1 = English, 0 = Other)"
+table1::label(dat$first_device_type) <- "Device"
+
+table1::table1(~age + browser_group + is_eng + first_device_type, data = dat)
+```
+
 
 # Modeling
 ## Logistic Regression
@@ -175,30 +189,31 @@ dat$IPTW.gbm <- dat %>%
 ```
 
 ## BART
-```{r bart, cache = TRUE}
+
+```{r bart_cause, cache = TRUE}
+# try bartCause
 # run BART on sample data due to computational time
-bart_sample <- 1000
-book_sample <- sample_n(dat, bart_sample)
+#bart_sample <- 1000
+#book_sample <- sample_n(dat, bart_sample)
+
 
 # get covariates for model
-xtrain_bart <- as.data.frame(book_sample %>% 
-                               select(age, gender, treat, is_mobile, 
+xtrain_bart <- as.data.frame(dat %>% 
+                               select(age, gender, is_mobile, 
                                       browser_group, is_eng))
-# run predictions on all data
-xtest_bart <- as.data.frame(dat %>% 
-                                select(age, gender, treat, is_mobile, 
-                                      browser_group, is_eng))
-# fit and predict
-bart <- gbart(x.train = xtrain_bart,  
-              y.train = book_sample$treat,
-              x.test = xtest_bart,
-              printevery = FALSE,
-              type = "lbart",
-              seed = seed,
-              mc.cores = 2)
+# fit model
+bart <- bartc(response = dat$is_booked, 
+              treatment = dat$treat,
+              confounders = xtrain_bart,
+              keepTrees = FALSE,
+              method.rsp = "bart",
+              method.trt = "bart",
+              estimand = "att",
+              verbose = TRUE)
 
-# add prop scores on full dataset
-dat$pscores.bart <- bart$prob.test.mean
+# get propensity scores
+dat$pscores.bart <- bart$p.score
+hist(dat$pscores.bart)
 
 ## one-to-one nearest neighbor w/ replacement
 matches.bart <- matching(z=dat$treat,score=dat$pscores.bart,replace=T)
@@ -210,7 +225,6 @@ dat$IPTW.bart <- dat %>%
   unlist() %>% 
   unname()
 ```
-
 
 
 # Model Summaries
@@ -442,5 +456,13 @@ effects_list <- lapply(match_counts,
                              weights = x) 
                          }
                        )
+
+# add model name column
+eff_dfs <- list()
+for (i in 1:length(effects_list)) {
+    eff_df <- as.data.frame(effects_list[[i]]$coefficients["treat"])
+    eff_df$model_name <- model_list[[i]]
+    eff_dfs[[i]] <- bal_df
+}
 ```
 
