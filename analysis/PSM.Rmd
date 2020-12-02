@@ -325,21 +325,10 @@ kable(bal_df %>%
 # best model on sd ratios
 kable(bal_df %>% filter(Covariate == "age") %>%
     group_by(model_name) %>% 
-    summarise(sd.ratio = mean(ratio)) %>% 
+    summarise(sd.ratio = abs(mean(ratio) - 1)) %>% 
     arrange(sd.ratio), 
-    caption = "Standard Deviation Ratios")
+    caption = "SD Ratios (Absolute values, centered on 1)")
 ```
-
-
-# Estimate Causal Effects
-
-The best model based on the lowest average balance metric and closest 
-sd ratio to 1 is BART IPTW.
-
-
-# Estimate Causal Effects
-
-## Treatment Effect for Best Model
 
 
 # Estimate Causal Effects
