@@ -13,11 +13,6 @@ Source: https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/
 
 ```/scripts```: data cleaning script
 
-## Dependencies
-```tidyverse```
-
-```here```
-
 ## Data dictionary
 
 https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/data
@@ -36,7 +31,7 @@ Derived columns:
 
 ```days_diff```: # of days between *days_first_active* and *date_account_created*
 
-## Variables to use
+## Variables used in analysis
 
 Outcome: ```is_booked```
 
