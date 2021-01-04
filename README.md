@@ -5,6 +5,12 @@ Airbnb Causal Analysis to measure the impact of direct vs. indirect marketing ad
 
 Source: https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings/
 
+## Dashboard
+https://public.tableau.com/profile/andrew.pagtakhan#!/vizhome/NYU_Causal_Airbnb/Dashboard
+
+## Presentation
+https://github.com/ajpag/Airbnb-Causal-Inference/blob/main/presentation/airbnb_causal_inference.pdf
+
 ## Directories
 
 ```/data```: formatted data for analysis
